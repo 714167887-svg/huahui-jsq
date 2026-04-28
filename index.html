@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#0b1220" />
+<title>HUAHUI · 工具入口</title>
+<style>
+:root {
+  --bg-1: #f5f7fb;
+  --bg-2: #e6ecf3;
+  --text: #0f172a;
+  --muted: #64748b;
+  --muted-2: #94a3b8;
+  --border: #e2e8f0;
+  --accent: #0ea5e9;
+  --accent-deep: #0369a1;
+  --gold: #b08440;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh;
+  font-family:'Inter','HarmonyOS Sans SC','PingFang SC','Microsoft YaHei UI',-apple-system,BlinkMacSystemFont,sans-serif;
+  font-feature-settings:'tnum' 1;
+  background:
+    radial-gradient(circle at 18% -10%, rgba(14,165,233,0.12), transparent 38%),
+    radial-gradient(circle at 88% 110%, rgba(176,132,64,0.10), transparent 42%),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+  background-attachment:fixed;
+  color:var(--text);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.card{
+  background:rgba(255,255,255,0.78);
+  border:1px solid rgba(255,255,255,0.9);
+  border-radius:22px;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.7) inset,
+    0 30px 60px -20px rgba(15,23,42,0.18),
+    0 6px 20px -6px rgba(15,23,42,0.08);
+  padding:34px 38px 30px;
+  width:100%;max-width:460px;
+  position:relative;overflow:hidden;
+  backdrop-filter:blur(14px) saturate(140%);
+  -webkit-backdrop-filter:blur(14px) saturate(140%);
+}
+.card::before{
+  content:"";position:absolute;top:0;left:0;width:100%;height:3px;
+  background:linear-gradient(90deg,var(--accent) 0%,var(--accent-deep) 50%,var(--gold) 100%);
+}
+.brand-side{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+.brand-mark{
+  width:40px;height:40px;border-radius:12px;
+  background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#334155 100%);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold);font-weight:900;font-size:1.1rem;letter-spacing:0.08em;
+  box-shadow:0 6px 14px rgba(15,23,42,0.22), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.brand-tag{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:5px 12px;border-radius:999px;
+  background:rgba(14,165,233,0.10);
+  border:1px solid rgba(14,165,233,0.28);
+  font-size:0.7rem;letter-spacing:0.2em;color:var(--accent-deep);font-weight:800;
+}
+h1{margin:0 0 4px;font-size:1.5rem;letter-spacing:0.04em;font-weight:800;}
+.sub{margin:0 0 22px;color:var(--muted);font-size:0.82rem;letter-spacing:0.04em;}
+.entry{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:14px 18px;background:#fff;
+  border:1px solid var(--border);border-radius:14px;
+  color:var(--text);text-decoration:none;
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.entry:hover{transform:translateY(-2px);box-shadow:0 14px 28px -8px rgba(14,165,233,0.22);border-color:var(--accent);}
+.entry .name{font-weight:800;font-size:1.02rem;letter-spacing:0.02em;}
+.entry .meta{font-size:0.72rem;color:var(--muted);letter-spacing:0.06em;margin-top:2px;}
+.entry .arrow{
+  width:30px;height:30px;border-radius:50%;
+  background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:1rem;
+  box-shadow:0 8px 16px -4px rgba(15,23,42,0.32);
+  transition:transform .2s ease;
+}
+.entry:hover .arrow{transform:translateX(2px);}
+.foot{margin-top:18px;text-align:center;color:var(--muted-2);font-size:0.66rem;letter-spacing:0.18em;text-transform:uppercase;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand-side">
+      <div class="brand-mark">H</div>
+      <span class="brand-tag">HUAHUI</span>
+    </div>
+    <h1>淋浴房工具</h1>
+    <p class="sub">钻石型 · HY-050 · 打样版本</p>
+    <a class="entry" href="./111.html">
+      <div>
+        <div class="name">淋浴房计算器</div>
+        <div class="meta">拉图拉尺 · 玻璃下单尺寸</div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+    <div class="foot">© HUAHUI</div>
+  </div>
+</body>
+</html>

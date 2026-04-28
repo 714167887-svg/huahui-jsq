@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>HUAHUI · 工具入口</title>
+<style>
+:root {
+  --primary: #d61f1f;
+  --primary-strong: #9f1111;
+  --text: #1c1714;
+  --muted: #75675f;
+  --border: #e0d5cd;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh;
+  font-family:'Segoe UI Variable Text','Microsoft YaHei UI','PingFang SC',sans-serif;
+  background:
+    linear-gradient(rgba(214,31,31,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(214,31,31,0.04) 1px, transparent 1px),
+    radial-gradient(circle at top, rgba(214,31,31,0.10), transparent 34%),
+    linear-gradient(180deg,#f8f4ef 0%,#ece6e1 100%);
+  background-size:28px 28px,28px 28px,auto,auto;
+  color:var(--text);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.card{
+  background:rgba(255,252,249,0.95);
+  border:1px solid rgba(255,255,255,0.88);
+  border-radius:22px;
+  box-shadow:0 24px 60px rgba(46,29,20,0.12);
+  padding:34px 38px 30px;
+  width:100%;max-width:460px;
+  position:relative;overflow:hidden;
+  backdrop-filter:blur(8px);
+}
+.card::before{
+  content:"";position:absolute;top:0;left:0;width:100%;height:4px;
+  background:linear-gradient(90deg,var(--primary) 0%,#f36b55 58%,#1c1714 100%);
+}
+.brand-tag{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:5px 12px;border-radius:999px;
+  background:rgba(255,255,255,0.66);
+  border:1px solid rgba(214,31,31,0.18);
+  font-size:0.7rem;letter-spacing:0.2em;color:var(--primary-strong);font-weight:800;
+  margin-bottom:14px;
+}
+.brand-tag::before{content:"";width:8px;height:8px;border-radius:50%;
+  background:linear-gradient(135deg,var(--primary),#ff7b6b);
+  box-shadow:0 0 0 3px rgba(214,31,31,0.18);}
+h1{
+  margin:0 0 6px;font-size:1.6rem;letter-spacing:0.06em;
+  font-family:'Bahnschrift SemiCondensed','Segoe UI Variable Display','Microsoft YaHei UI',sans-serif;
+}
+.sub{margin:0 0 22px;color:var(--muted);font-size:0.85rem;letter-spacing:0.04em;}
+.entry{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:14px 18px;
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:14px;
+  color:var(--text);text-decoration:none;
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.entry:hover{
+  transform:translateY(-2px);
+  box-shadow:0 14px 28px rgba(46,29,20,0.10);
+  border-color:rgba(214,31,31,0.32);
+}
+.entry .name{font-weight:800;font-size:1.02rem;letter-spacing:0.02em;}
+.entry .meta{font-size:0.72rem;color:var(--muted);letter-spacing:0.06em;}
+.entry .arrow{
+  width:30px;height:30px;border-radius:50%;
+  background:linear-gradient(135deg,var(--primary) 0%,#a81212 100%);
+  color:#fff;display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:1rem;
+  box-shadow:0 8px 16px rgba(168,18,18,0.22);
+}
+.foot{margin-top:18px;text-align:center;color:var(--muted);font-size:0.7rem;letter-spacing:0.08em;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="brand-tag">HUAHUI</span>
+    <h1>淋浴房工具</h1>
+    <p class="sub">钻石型 · HY-050 · 打样版本</p>
+    <a class="entry" href="./111.html">
+      <div>
+        <div class="name">淋浴房计算器</div>
+        <div class="meta">拉图拉尺 · 玻璃下单尺寸</div>
+      </div>
+      <div class="arrow">›</div>
+    </a>
+    <div class="foot">© HUAHUI</div>
+  </div>
+</body>
+</html>

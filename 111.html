@@ -1,0 +1,3094 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0b1220" />
+<title>HUAHUI · 淋浴房计算器</title>
+<link rel="icon" href="data:," />
+<style>
+:root {
+  /* 低亮度暖灰 · 参考 jsq 的红黑米白调 */
+  --bg-1: #f8f4ef;
+  --bg-2: #ece6e1;
+  --surface: rgba(255,252,249,0.92);
+  --surface-strong: #fffdfa;
+  --surface-soft: #f8f2ee;
+  --text: #1c1714;
+  --text-2: #2d241f;
+  --muted: #75675f;
+  --muted-2: #a08f84;
+  --border: #e0d5cd;
+  --border-strong: #cdbdb2;
+  --primary: #d61f1f;
+  --primary-strong: #9f1111;
+  --accent: #151515;
+  --accent-deep: #9f1111;
+  --accent-soft: rgba(214,31,31,0.08);
+  --panel-span-width: 1040px;
+  --bg: #ece6e1;
+  --gold: #9a6b3e;
+  --gold-deep: #75491e;
+  --success: #0f766e;
+  --danger: #dc2626;
+  --viewer-dock-width: clamp(560px, 42vw, 760px);
+
+  /* SVG 渲染器变量 - 沿用 jsq 原版红/酒红/棕褐 调性 */
+  --wall-color: #1c1714;
+  --label-color: #1c1714;
+  --guide-color: #d61f1f;
+  --guide-text-color: #d61f1f;
+  --angle-color: #9a6b3e;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI Variable Text','Microsoft YaHei UI','PingFang SC',sans-serif;
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+  color: var(--text);
+  min-height: 100vh;
+  padding: 20px 14px 30px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background:
+    linear-gradient(rgba(214,31,31,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(214,31,31,0.035) 1px, transparent 1px),
+    radial-gradient(circle at top, rgba(214,31,31,0.08), transparent 34%),
+    linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+  background-size: 28px 28px, 28px 28px, auto, auto;
+  background-attachment: fixed;
+  transition: padding-right 0.28s ease, justify-content 0.28s ease;
+}
+
+.container {
+  width: 100%;
+  max-width: 1140px;
+  background: rgba(255,252,249,0.95);
+  border: 1px solid rgba(255,255,255,0.86);
+  border-radius: 22px;
+  box-shadow: 0 24px 60px rgba(46,29,20,0.12);
+  overflow: hidden;
+  padding-bottom: 16px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: max-width 0.28s ease, box-shadow 0.28s ease;
+}
+
+header {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px 9px;
+  background:
+    radial-gradient(circle at top right, rgba(214,31,31,0.10), transparent 42%),
+    linear-gradient(180deg, rgba(255,252,249,0.98) 0%, rgba(248,242,238,0.98) 100%);
+  border-bottom: 1px solid #e4d8d0;
+}
+header::before {
+  content:"";
+  position:absolute; top:0; left:0; right:0; height:4px;
+  background: linear-gradient(90deg, var(--primary) 0%, #f36b55 58%, #1c1714 100%);
+}
+.brand-side { display:flex; align-items:center; gap: 14px; }
+.brand-mark {
+  width: 38px; height: 38px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%);
+  display:flex; align-items:center; justify-content:center;
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 1.08rem;
+  letter-spacing: 0.08em;
+  box-shadow: 0 6px 14px rgba(15,23,42,0.22), inset 0 1px 0 rgba(255,255,255,0.18);
+  font-family: 'Inter','HarmonyOS Sans SC',serif;
+}
+header h1 {
+  margin: 0;
+  font-size: 1.26rem;
+  letter-spacing: 0.04em;
+  font-weight: 800;
+  color: var(--text);
+  font-family: 'Bahnschrift SemiCondensed','Segoe UI Variable Display','Microsoft YaHei UI',sans-serif;
+}
+header p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+}
+.status-pill {
+  display:inline-flex; align-items:center; gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(15,23,42,0.04);
+  border: 1px solid var(--border);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  font-weight: 700;
+  transition: all .25s ease;
+}
+.status-pill::before {
+  content:""; width:6px; height:6px; border-radius:50%;
+  background: var(--muted-2);
+  box-shadow: 0 0 0 3px rgba(148,163,184,0.18);
+}
+.status-pill.ok {
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+  border-color: rgba(214,31,31,0.18);
+}
+.status-pill.ok::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(214,31,31,0.14);
+}
+
+.content { padding: 16px 18px 18px; }
+
+.filter-row,
+.control-row,
+.diagram-workbench,
+#diamond-inputs,
+.action-row,
+.glass-input-row,
+.result-area {
+  width: 100%;
+  max-width: var(--panel-span-width);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 通用表单 */
+label {
+  display: block;
+  margin-bottom: 0;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+}
+input, select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  font-size: 0.89rem;
+  font-family: inherit;
+  background: rgba(255,255,255,0.96);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
+}
+input:hover, select:hover { border-color: var(--border-strong); }
+input:focus, select:focus {
+  outline: none;
+  border-color: rgba(11,101,127,0.62);
+  box-shadow: 0 0 0 3px rgba(11,101,127,0.10);
+  transform: translateY(-1px);
+  background: #fff;
+}
+
+/* 三栏筛选 */
+.filter-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.filter-row > .form-group {
+  padding: 9px 10px 10px;
+  background: rgba(255,255,255,0.72);
+  border: 1px solid #dde6ee;
+  border-radius: 15px;
+  box-shadow: 0 8px 16px rgba(15,23,42,0.03);
+}
+@media (max-width: 720px) { .filter-row { grid-template-columns: 1fr; } }
+
+/* 控制行 - 全部塞进同一个可包裹的 flex */
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+  align-items: stretch;
+}
+.control-card {
+  flex: 1 1 200px;
+  min-width: 0;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.control-card:hover { border-color: var(--border-strong); }
+.control-card--mode { flex: 2 1 360px; }
+.control-card--direction { flex: 1.6 1 280px; }
+.control-card--field { flex: 1 1 180px; }
+.control-card-label {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin: 0;
+}
+.control-card--field input {
+  margin-top: 0;
+}
+.control-card--enter {
+  animation: cardIn .28s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateX(-8px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+
+/* 分段按钮（mode-selector / direction-selector） */
+.mode-selector {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  background: rgba(238,243,247,0.92);
+  border: 1px solid #d7e0e8;
+  border-radius: 13px;
+  padding: 3px;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+}
+.mode-btn {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 7px 8px;
+  color: #425262;
+  border-radius: 9px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  line-height: 1.2;
+  min-height: 36px;
+  overflow: hidden;
+  box-shadow: none;
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+}
+.mode-btn:hover:not(.active) {
+  background: rgba(255,255,255,0.72);
+  border-color: #dde5ec;
+}
+.mode-btn.active {
+  background: var(--surface-strong);
+  color: var(--primary-strong);
+  border-color: #d1dbe4;
+  box-shadow: inset 0 -2px 0 var(--primary), 0 3px 8px rgba(15,23,42,0.04);
+}
+.mode-btn-title {
+  display: block;
+  font-size: 0.77rem;
+  font-weight: 700;
+  letter-spacing: 0.015em;
+  font-family: 'Bahnschrift SemiBold','Segoe UI Variable Text','Microsoft YaHei UI',sans-serif;
+}
+.mode-btn-subtitle { display: none; }
+.mode-btn--single { align-items: center; text-align: center; }
+.mode-btn--single .mode-btn-subtitle:empty { display: none; }
+
+/* 主图舞台 */
+.diagram-stage {
+  position: relative;
+  width: 100%;
+  height: 284px;
+  background: linear-gradient(180deg, #ffffff 0%, #f5f8fb 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.92), 0 12px 24px rgba(15,23,42,0.045);
+}
+.diagram-stage::before,
+.diagram-stage::after { display: none; }
+#main-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: transparent;
+  border-radius: 0;
+  position: relative;
+  z-index: 1;
+  transition: opacity .25s ease;
+}
+.diagram-stage.computing #main-svg { opacity: 0.45; }
+
+/* 3D 渲染舞台 */
+#three-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 16px;
+  z-index: 2;
+  cursor: grab;
+}
+#three-canvas:active { cursor: grabbing; }
+.diagram-stage[data-view="3d"] #main-svg { display: none; }
+.diagram-stage[data-view="2d"] #three-canvas { display: none; }
+.diagram-stage[data-view="2d"] #three-labels { display: none; }
+.three-labels {
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  font-family: 'Bahnschrift SemiCondensed','Microsoft YaHei UI',sans-serif;
+}
+.three-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  color: #1f2937;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-shadow:
+     0 1px 0 rgba(255,255,255,0.95),
+     0 -1px 0 rgba(255,255,255,0.95),
+     1px 0 0 rgba(255,255,255,0.95),
+    -1px 0 0 rgba(255,255,255,0.95);
+}
+.view-switcher {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.94);
+  backdrop-filter: blur(6px);
+  color: #1f2937;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  user-select: none;
+  box-shadow: 0 4px 10px rgba(15,23,42,0.08);
+  transition: background .18s, color .18s, transform .12s;
+  font-family: 'Bahnschrift SemiCondensed','Segoe UI Variable Text','Microsoft YaHei UI',sans-serif;
+}
+.view-switcher:hover { background: #ffffff; transform: translateY(-1px); }
+.view-switcher[data-view="3d"] {
+  background: linear-gradient(180deg, #d61f1f 0%, #a81212 100%);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 10px rgba(168,18,18,0.32);
+}
+.three-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 0.85rem;
+  z-index: 4;
+  pointer-events: none;
+  font-family: 'Segoe UI Variable Text','Microsoft YaHei UI',sans-serif;
+}
+.three-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  z-index: 3;
+  background: rgba(15,23,42,0.55);
+  color: #f8fafc;
+  font-size: 0.7rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  font-family: 'Bahnschrift','Segoe UI Variable Text',sans-serif;
+}
+
+/* SVG 右键菜单 */
+.force-edit-menu {
+  position: fixed; z-index: 1200;
+  min-width: 132px; padding: 6px;
+  border-radius: 14px; border: 1px solid rgba(209, 219, 228, 0.96);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(10px);
+  font-family: 'Segoe UI Variable Text','Microsoft YaHei UI',sans-serif;
+}
+.force-edit-menu[hidden] { display: none; }
+.force-edit-menu__item {
+  display: block; width: 100%; padding: 9px 10px;
+  border: 0; border-radius: 10px;
+  background: transparent; color: #1c1714;
+  font-size: 0.82rem; font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.force-edit-menu__item:hover {
+  background: rgba(214, 31, 31, 0.08);
+  color: #9f1111;
+}
+.force-edit-menu__item--danger:hover {
+  background: rgba(214, 31, 31, 0.14);
+  color: #9f1111;
+}
+
+/* 自定义插入字段 */
+.svg-custom-field {
+  fill: #1c1714;
+  font-size: 18px;
+  font-weight: 800;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  paint-order: stroke; stroke: #fff; stroke-width: 4px;
+  cursor: grab;
+  user-select: none;
+}
+.svg-custom-field.is-selected {
+  fill: #d61f1f;
+}
+.svg-custom-field.is-dragging { cursor: grabbing; }
+.svg-direction-label { cursor: grab; }
+.svg-direction-label.is-dragging { cursor: grabbing; }
+
+/* SVG 内部样式 - render.js 输出依赖这些 class */
+.svg-wall { stroke: var(--wall-color); stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.svg-guide { stroke: var(--guide-color); stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 4 2; opacity: .95; }
+.svg-angle-arc { fill: none; stroke: var(--angle-color); stroke-width: 2; }
+.svg-text, .svg-guide-text, .svg-angle-text {
+  font-weight: 800;
+  font-family: 'Inter','SF Mono',monospace;
+  text-anchor: middle; dominant-baseline: middle;
+  paint-order: stroke; stroke: #ffffff; stroke-width: 3.5px;
+}
+.svg-text { fill: var(--label-color); font-size: 17px; }
+.svg-guide-text { fill: var(--guide-text-color); font-size: 17px; }
+.svg-angle-text { fill: var(--angle-color); font-size: 18px; }
+.svg-direction-label {
+  fill: var(--guide-color);
+  font-weight: 800; font-size: 22px;
+  font-family: 'Inter','PingFang SC',sans-serif;
+  paint-order: stroke; stroke: #fff; stroke-width: 4px;
+}
+
+/* 输入数据行 */
+.input-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.input-row > .form-group { flex: 1 1 0; }
+@media (max-width: 600px) {
+  .input-row { flex-wrap: wrap; }
+  .input-row .form-group { flex: 1 1 45%; }
+}
+
+/* 操作按钮 */
+.action-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.btn-calc {
+  width: 100%;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #0e728d 0%, #0a596f 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.91rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  margin-top: 4px;
+  box-shadow: 0 12px 22px rgba(11,101,127,0.16);
+}
+.btn-calc:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 15px 28px rgba(11,101,127,0.20);
+}
+.btn-calc:disabled {
+  background: #edf3f7;
+  color: #788696;
+  border: 1px dashed #c7d2dd;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.action-row .btn-calc { flex: 1; margin-top: 0; }
+
+/* 结果区 */
+.result-area {
+  margin-top: 14px;
+  padding: 16px 18px 14px;
+  background:
+    linear-gradient(180deg, rgba(214,31,31,0.025) 0%, rgba(214,31,31,0.008) 100%),
+    var(--surface-strong);
+  border: 1px solid rgba(214,31,31,0.10);
+  border-radius: 16px;
+  animation: fadeUp .35s ease both;
+}
+@keyframes fadeUp {
+  from { opacity:0; transform: translateY(8px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+.result-title {
+  text-align: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  color: var(--muted);
+  font-weight: 800;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+.result-title b { color: var(--accent-deep); margin-left: 6px; }
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.result-cell {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 3px;
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+  animation: cardIn .32s cubic-bezier(.34,1.56,.64,1) both;
+}
+.result-cell:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 10px 22px -8px rgba(214,31,31,0.18);
+}
+.result-cell .k { font-size: 0.66rem; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; }
+.result-cell .v { font-size: 1.04rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+.result-cell.glass { background: linear-gradient(180deg, #fffdfa 0%, rgba(214,31,31,0.025) 100%); }
+.result-cell.glass .v { color: var(--accent-deep); }
+
+.glass-input-row {
+  display:grid;
+  grid-template-columns: 240px 1fr;
+  gap:12px;
+  align-items:end;
+  margin-bottom: 12px;
+}
+@media (max-width: 600px) { .glass-input-row { grid-template-columns: 1fr; } }
+.placeholder-tip {
+  text-align:center; padding: 16px 10px;
+  color: var(--muted); font-size: 0.84rem;
+  background: var(--surface-soft);
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+}
+
+.err {
+  margin: 6px 0; min-height: 16px;
+  color: var(--danger); font-size: 0.8rem; font-weight: 600;
+}
+.err:empty { display:none; }
+
+footer.foot {
+  text-align: center;
+  color: var(--muted-2);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  padding: 14px 18px 6px;
+  text-transform: uppercase;
+}
+
+/* ====== 工作台双栏（主图 + 参考图） ====== */
+.diagram-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 312px;
+  gap: 12px;
+  align-items: stretch;
+  margin: 14px auto 16px;
+}
+.diagram-workbench .diagram-stage { margin-bottom: 0; }
+@media (max-width: 880px) {
+  .diagram-workbench { grid-template-columns: 1fr; }
+}
+
+.reference-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ====== 以下来自 jsq 原版 (reference + capture + snapshot-editor) ====== */
+.reference-dropzone {
+  flex: 1;
+  min-height: 284px;
+  height: 284px;
+  border: 1px dashed #c9d5df;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(245,248,251,0.96) 100%);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; position: relative; cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, height 0.3s ease, min-height 0.3s ease;
+  outline: none;
+}
+.reference-dropzone:hover, .reference-dropzone:focus, .reference-dropzone.is-active {
+  border-color: rgba(11,101,127,0.35);
+  box-shadow: 0 0 0 3px rgba(11,101,127,0.08);
+}
+.reference-placeholder {
+  width: 66px; height: 66px; border-radius: 18px;
+  border: 2px dashed #d8e2ea;
+  background: linear-gradient(135deg, rgba(214, 31, 31, 0.045) 0%, rgba(28, 23, 20, 0.035) 100%);
+  position: relative;
+}
+.reference-placeholder::before, .reference-placeholder::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  background: #c0ccd7; border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+.reference-placeholder::before { width: 28px; height: 2px; }
+.reference-placeholder::after { width: 2px; height: 28px; }
+.reference-preview { width: 100%; height: 100%; object-fit: contain; background: #ffffff; }
+.reference-actions { display: flex; gap: 8px; }
+.reference-btn {
+  flex: 1; padding: 9px 12px; border-radius: 12px; border: none;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #ffffff; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.22);
+  font-family: inherit;
+}
+.reference-btn:hover { transform: translateY(-1px); box-shadow: 0 13px 24px rgba(15, 23, 42, 0.28); }
+.reference-btn--ghost { background: #edf3f7; color: #516272; border: 1px solid #d1dbe4; box-shadow: none; }
+.reference-btn--ghost:hover { box-shadow: none; }
+.reference-status {
+  min-height: 1.2em; font-size: 0.72rem; font-weight: 700; color: var(--muted);
+}
+.reference-status.success { color: #15803d; }
+.reference-status.error { color: #b91c1c; }
+.reference-dropzone.has-image, .reference-preview { cursor: zoom-in; }
+
+.reference-viewer {
+  position: fixed; top: 14px; right: 14px; bottom: 14px;
+  width: var(--viewer-dock-width); z-index: 1000;
+  display: flex; align-items: stretch; justify-content: flex-end;
+}
+.reference-viewer[hidden] { display: none; }
+.reference-viewer__panel {
+  position: relative; width: 100%; height: 100%;
+  padding: 54px 8px 8px; border-radius: 24px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(219, 229, 238, 0.95);
+  box-shadow: 0 26px 54px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+.reference-viewer__viewport {
+  width: 100%; height: 100%; overflow: auto; border-radius: 16px;
+  background: #ffffff; cursor: grab; touch-action: none; user-select: none;
+  position: relative; scrollbar-width: none; -ms-overflow-style: none;
+}
+.reference-viewer__viewport::-webkit-scrollbar { width: 0; height: 0; }
+.reference-viewer__viewport.is-dragging { cursor: grabbing; }
+.reference-viewer__stage { position: relative; }
+.reference-viewer__image {
+  width: auto; height: auto; min-height: 0; max-width: none; max-height: none;
+  display: block; background: #ffffff; border-radius: 14px;
+  position: absolute; top: 0; left: 0; image-rendering: auto;
+  backface-visibility: hidden; pointer-events: none; user-select: none; -webkit-user-drag: none;
+}
+.reference-viewer__close {
+  position: absolute; top: 10px; right: 10px;
+  width: 38px; height: 38px; border: none; border-radius: 999px;
+  background: rgba(21, 21, 21, 0.82); color: #ffffff;
+  font-size: 1.15rem; line-height: 1; cursor: pointer;
+  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.24);
+}
+.reference-viewer__close:hover { background: rgba(21, 21, 21, 0.94); }
+
+/* 主图列容器：矢量图 + 截图工具条 垂直堆叠（与右侧参考图框对齐） */
+.diagram-column {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0;
+}
+.diagram-column .diagram-stage { margin-bottom: 0; }
+.diagram-stage-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 54px;
+}
+.capture-host-stage {
+  width: min(100%, 336px);
+  margin-left: auto;
+}
+#capture-toolbar-staging { display: none; }
+
+/* 截图按钮 + 工具条（参照 jsq） */
+.capture-toolbar {
+  display: grid;
+  grid-template-columns: max-content max-content minmax(148px, 1fr);
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+}
+.capture-btn {
+  width: auto; min-width: 0;
+  border: none; border-radius: 12px; padding: 9px 14px;
+  font-size: 0.85rem; font-weight: 800; cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+  background: linear-gradient(135deg, #d61f1f 0%, #a81212 100%);
+  color: #ffffff; box-shadow: 0 12px 22px rgba(168,18,18,0.18);
+  font-family: inherit;
+}
+.capture-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 15px 28px rgba(168,18,18,0.24); }
+.capture-btn:disabled { opacity: 0.65; cursor: wait; transform: none; box-shadow: none; }
+.capture-btn--edit {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 12px 22px rgba(37,99,235,0.18);
+}
+.capture-btn--edit:hover:not(:disabled) { box-shadow: 0 15px 28px rgba(37,99,235,0.24); }
+.capture-signature {
+  display: grid; grid-template-columns: auto minmax(118px, 1fr);
+  align-items: center; gap: 4px; min-width: 0; width: 100%;
+}
+.capture-signature label { white-space: nowrap; font-weight: 700; font-size: 0.68rem; color: var(--muted); margin: 0; }
+.capture-signature input {
+  width: 100%; min-width: 0; padding: 7px 8px;
+  border-radius: 9px; border: 1px solid #d6dee6;
+  font-size: 0.8rem; font-weight: 700; color: var(--text); background: #ffffff;
+}
+.capture-signature input:focus {
+  outline: none; border-color: rgba(214, 31, 31, 0.32);
+  box-shadow: 0 0 0 3px rgba(214, 31, 31, 0.12);
+}
+.capture-status {
+  grid-column: 1 / -1; min-height: 1.15em; margin-top: 2px;
+  font-size: 0.7rem; font-weight: 700; color: var(--muted);
+  letter-spacing: 0.02em; text-align: left;
+}
+.capture-status.success { color: #15803d; }
+.capture-status.error { color: #b91c1c; }
+
+/* 截图编辑器 */
+.snapshot-editor {
+  position: fixed; inset: 0; z-index: 1200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 0 12px;
+  background: rgba(15, 23, 42, 0.42); backdrop-filter: blur(6px);
+}
+.snapshot-editor[hidden] { display: none; }
+.snapshot-editor__panel {
+  width: 100vw; height: clamp(560px, 72vh, 780px);
+  display: grid; grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px; padding: 10px 12px 12px;
+  border-radius: 0 0 20px 20px; background: #f8fafc;
+  box-shadow: 0 32px 64px rgba(15, 23, 42, 0.28);
+}
+.snapshot-editor__toolbar { display: grid; gap: 10px; min-width: 0; }
+.snapshot-editor__topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; }
+.snapshot-editor__heading { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
+.snapshot-editor__title { color: #0f172a; font-size: 1rem; font-weight: 900; letter-spacing: 0.04em; }
+.snapshot-editor__controls { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; min-width: 0; }
+.snapshot-editor__group {
+  display: flex; flex-direction: column; gap: 8px; min-width: 0;
+  padding: 10px 12px; border: 1px solid #dbe5ef; border-radius: 16px;
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+.snapshot-editor__group--tools { min-width: 212px; }
+.snapshot-editor__group--palette { min-width: 168px; }
+.snapshot-editor__group--zoom { min-width: 220px; }
+.snapshot-editor__group--arrow { min-width: 220px; }
+.snapshot-editor__group-label { color: #64748b; font-size: 0.72rem; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+.snapshot-editor__range-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.snapshot-editor__range { width: 100%; accent-color: var(--accent); cursor: pointer; }
+.snapshot-editor__range-value { min-width: 42px; text-align: right; color: #334155; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.02em; }
+.snapshot-editor__tools, .snapshot-editor__palette, .snapshot-editor__zoom, .snapshot-editor__actions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.snapshot-editor__actions { justify-content: flex-end; align-self: flex-start; }
+.snapshot-editor__tool, .snapshot-editor__action {
+  border: none; border-radius: 11px; padding: 8px 13px;
+  font-size: 0.8rem; font-weight: 800; cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease, background-color 0.18s ease, color 0.18s ease;
+  font-family: inherit;
+}
+.snapshot-editor__tool { background: #e2e8f0; color: #1e293b; }
+.snapshot-editor__tool.is-active { background: var(--accent); color: #ffffff; box-shadow: 0 10px 20px rgba(214, 31, 31, 0.18); }
+.snapshot-editor__action { background: #ffffff; color: #0f172a; box-shadow: 0 8px 16px rgba(15, 23, 42, 0.07); }
+.snapshot-editor__action--primary { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%); color: #ffffff; box-shadow: 0 10px 20px rgba(214, 31, 31, 0.18); }
+.snapshot-editor__tool:hover, .snapshot-editor__action:hover { transform: translateY(-1px); }
+.snapshot-editor__status { min-height: 1.1em; color: #64748b; font-size: 0.76rem; font-weight: 700; letter-spacing: 0.02em; line-height: 1.45; }
+.snapshot-editor__status.error { color: #b91c1c; }
+.snapshot-editor__status.success { color: #15803d; }
+.snapshot-editor__zoom-value { min-width: 56px; text-align: center; color: #475569; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.03em; }
+.snapshot-editor__color {
+  width: 24px; height: 24px; padding: 0;
+  border-radius: 999px; border: 2px solid rgba(255,255,255,0.92);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.45); cursor: pointer;
+}
+.snapshot-editor__color.is-active {
+  transform: scale(1.08); box-shadow: 0 0 0 2px rgba(214, 31, 31, 0.34);
+}
+.snapshot-editor__viewport {
+  min-width: 0; min-height: 0; overflow: auto;
+  border-radius: 18px; border: 1px solid #dbe2ea;
+  background: linear-gradient(180deg, #edf2f8 0%, #f8fafc 100%);
+  padding: 8px;
+}
+.snapshot-editor__canvas-wrap { width: max-content; min-width: 100%; min-height: 100%; display: flex; align-items: center; justify-content: center; }
+.snapshot-editor__canvas {
+  display: block; max-width: none; max-height: none;
+  border-radius: 16px; background: #ffffff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.14);
+  touch-action: none; cursor: crosshair;
+}
+.snapshot-editor__viewport.is-panning,
+.snapshot-editor__viewport.is-panning .snapshot-editor__canvas { cursor: grabbing; }
+
+body.reference-dock-open { justify-content: flex-start; padding-right: calc(var(--viewer-dock-width) + 14px); }
+body.reference-dock-open .container { width: 100%; max-width: min(1140px, calc(100vw - var(--viewer-dock-width) - 24px)); }
+body.reference-dock-open .diagram-workbench { grid-template-columns: 1fr; }
+body.reference-dock-open .reference-panel { display: none; }
+@media (max-width: 1180px) {
+  :root { --viewer-dock-width: clamp(360px, 44vw, 520px); }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div class="brand-side">
+      <div class="brand-mark">H</div>
+      <div>
+        <h1>淋浴房计算器</h1>
+        <p>HUAHUI · HY-050 · 钻石型 · 转轴款</p>
+      </div>
+    </div>
+    <div class="status-pill" id="status-tag"><span>就绪</span></div>
+  </header>
+
+  <div class="content">
+
+    <!-- 筛选三栏：房型 / 款式 / 安装基准 -->
+    <div class="filter-row">
+      <div class="form-group">
+        <label for="room-type">房型</label>
+        <select id="room-type" disabled>
+          <option value="diamond">钻石型</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="model-input">款式</label>
+        <select id="model-input">
+          <option value="HY-050" selected>HY-050（开门 · 转轴）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="install-type">安装基准</label>
+        <select id="install-type">
+          <option value="stone_base" selected>石基尺寸</option>
+          <option value="sink_top">下沉安装在上</option>
+          <option value="stone_center">石基居中</option>
+          <option value="stone_inward">石基内移</option>
+          <option value="room_body">房体尺寸</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 控制行：尺寸模式 / 开启方向 / 端点修正 / [条件字段] —— 全部同行 wrap -->
+    <div class="control-row">
+      <div class="control-card control-card--mode">
+        <span class="control-card-label">📏 尺寸模式</span>
+        <div class="mode-selector" id="mode-selector">
+          <button type="button" class="mode-btn active" data-mode="angle">
+            <span class="mode-btn-title">三边角度</span>
+            <span class="mode-btn-subtitle">已知角度</span>
+          </button>
+          <button type="button" class="mode-btn" data-mode="cross">
+            <span class="mode-btn-title">三边测距</span>
+            <span class="mode-btn-subtitle">两端到角</span>
+          </button>
+          <button type="button" class="mode-btn" data-mode="pentagon">
+            <span class="mode-btn-title">五边尺寸</span>
+            <span class="mode-btn-subtitle">辅助斜边</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="control-card control-card--direction">
+        <span class="control-card-label">🚪 开启方向</span>
+        <div class="mode-selector" id="direction-selector">
+          <button type="button" class="mode-btn active" data-dir="left">
+            <span class="mode-btn-title">转轴在左</span>
+            <span class="mode-btn-subtitle">推门方向</span>
+          </button>
+          <button type="button" class="mode-btn" data-dir="right">
+            <span class="mode-btn-title">转轴在右</span>
+            <span class="mode-btn-subtitle">推门方向</span>
+          </button>
+          <button type="button" class="mode-btn" data-dir="none">
+            <span class="mode-btn-title">不显示</span>
+            <span class="mode-btn-subtitle">&nbsp;</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="control-card control-card--field" id="shorten-card">
+        <label class="control-card-label" for="shorten-input">✂️ 端点修正 (mm)</label>
+        <input type="text" id="shorten-input" value="5">
+      </div>
+
+      <div class="control-card control-card--field" id="sink-top-outward-group" style="display:none">
+        <label class="control-card-label" for="sink-top-outward-value">↗️ 外移尺寸 (mm)</label>
+        <input type="text" id="sink-top-outward-value" value="0">
+      </div>
+
+      <div class="control-card control-card--field" id="stone-inward-group" style="display:none">
+        <label class="control-card-label" for="stone-inward-value">↔️ 内移尺寸 (mm)</label>
+        <input type="text" id="stone-inward-value" value="0">
+      </div>
+
+      <div class="control-card control-card--field" id="stone-center-width-group" style="display:none">
+        <label class="control-card-label" for="stone-center-width">📐 石基宽度 (mm)</label>
+        <input type="text" id="stone-center-width" value="60">
+      </div>
+    </div>
+
+    <!-- 主图 + 参考图侧栏 -->
+    <div class="diagram-workbench">
+      <div class="diagram-column">
+        <div class="diagram-stage" id="diagram-stage" data-view="2d">
+          <svg id="main-svg" preserveAspectRatio="xMidYMid meet">
+            <text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="16">请输入数据生成示意图</text>
+          </svg>
+          <canvas id="three-canvas"></canvas>
+          <div id="three-labels" class="three-labels"></div>
+          <div class="view-switcher" id="view-switcher" role="button" tabindex="0" data-view="2d" title="点击切换 2D / 3D">2D</div>
+          <div class="three-hint" id="three-hint" hidden>左键拖动旋转 · 右键平移 · 滚轮缩放</div>
+        </div>
+        <div class="diagram-stage-footer">
+          <div id="capture-host-stage" class="capture-host-stage"></div>
+        </div>
+      </div>
+      <aside class="reference-panel">
+        <div id="reference-dropzone" class="reference-dropzone" tabindex="0">
+          <img id="reference-preview" class="reference-preview" alt="客户来图参考预览" hidden>
+          <div id="reference-placeholder" class="reference-placeholder" aria-hidden="true"></div>
+        </div>
+        <div class="reference-actions">
+          <button type="button" id="reference-paste-btn" class="reference-btn">粘贴图片</button>
+          <button type="button" id="reference-clear-btn" class="reference-btn reference-btn--ghost">清空图片</button>
+          <input type="file" id="reference-file-input" accept="image/*" hidden>
+        </div>
+        <div id="reference-status" class="reference-status" aria-live="polite"></div>
+      </aside>
+    </div>
+
+    <!-- 输入数据 -->
+    <div id="diamond-inputs">
+      <div class="input-row" id="input-group-pentagon" style="display:none">
+        <div class="form-group"><label>左斜边 LS (mm)</label><input type="text" id="input-ls" value=""></div>
+        <div class="form-group"><label>右斜边 RS (mm)</label><input type="text" id="input-rs" value=""></div>
+      </div>
+      <div class="input-row" id="input-group-sides">
+        <div class="form-group"><label>左线 (mm)</label><input type="text" id="input-l" value="900"></div>
+        <div class="form-group" id="input-c-wrap"><label>中线 (mm)</label><input type="text" id="input-c" value="900"></div>
+        <div class="form-group"><label>右线 (mm)</label><input type="text" id="input-r" value="900"></div>
+      </div>
+      <div class="input-row" id="input-group-angle">
+        <div class="form-group"><label>左角度 (°)</label><input type="text" id="angle-l" value="135"></div>
+        <div class="form-group"><label>右角度 (°)</label><input type="text" id="angle-r" value="135"></div>
+        <div class="form-group" style="visibility:hidden"><label>占位</label><input></div>
+      </div>
+      <div class="input-row" id="input-group-cross" style="display:none">
+        <div class="form-group"><label>左→右下角距离 (mm)</label><input type="text" id="dist-l-p2" value=""></div>
+        <div class="form-group"><label>右→左下角距离 (mm)</label><input type="text" id="dist-r-p1" value=""></div>
+        <div class="form-group" style="visibility:hidden"><label>占位</label><input></div>
+      </div>
+    </div>
+
+    <div class="err" id="err"></div>
+
+    <div class="action-row">
+      <button type="button" id="glass-calc-btn" class="btn-calc"><span>计算玻璃数据</span></button>
+      <button type="button" class="btn-calc" disabled><span>计算开门空间（待开发）</span></button>
+    </div>
+
+    <!-- 截图工具条：默认 staging 隐藏，init 时迁移到矢量图下方的 #capture-host-stage -->
+    <div id="capture-toolbar-staging">
+      <div class="capture-toolbar" id="capture-toolbar">
+        <button type="button" id="capture-edit-btn" class="capture-btn capture-btn--edit">编辑</button>
+        <button type="button" id="capture-btn" class="capture-btn">截图</button>
+        <div class="capture-signature">
+          <label for="capture-signature">制图人</label>
+          <input type="text" id="capture-signature" maxlength="12" autocomplete="off" placeholder="输入">
+        </div>
+        <div id="capture-status" class="capture-status" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div id="result-area" class="result-area" style="display:none">
+      <div class="result-title">玻璃数据 · <b id="res-model-name">HY-050</b></div>
+      <div class="glass-input-row">
+        <div class="form-group">
+          <label>总高 (mm)</label>
+          <input type="text" id="total-height-input" value="2000">
+        </div>
+        <div></div>
+      </div>
+      <div id="result-grid" class="result-grid"></div>
+      <div id="glass-placeholder" class="placeholder-tip" style="display:none">玻璃目录尚未配置 HY-050 钻石型</div>
+    </div>
+
+  </div>
+
+  <footer class="foot">© HUAHUI · HY-050 · 打样版本</footer>
+</div>
+
+<div id="force-edit-menu" class="force-edit-menu" hidden role="menu"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import { toNumber } from "./lib/protected-calc.js";
+import { renderProtectedDiagram } from "./lib/render.js";
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
+let currentMode = "angle";
+let currentDirection = "left";
+let glassCatalog = null;
+
+async function loadGlassCatalog() {
+  if (glassCatalog) return glassCatalog;
+  try {
+    const res = await fetch("./glass/catalog.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    glassCatalog = await res.json();
+  } catch (err) {
+    console.warn("glass catalog load failed:", err);
+    glassCatalog = { entries: [] };
+  }
+  return glassCatalog;
+}
+
+function findGlassEntry(model, roomType) {
+  if (!glassCatalog || !Array.isArray(glassCatalog.entries)) return null;
+  return glassCatalog.entries.find((e) => e.model === model && e.roomType === roomType) || null;
+}
+
+function evalFormula(formula, totalHeight, materialWidth) {
+  if (!formula) return null;
+  const expr = String(formula)
+    .replace(/总高/g, String(totalHeight))
+    .replace(/材料/g, String(materialWidth))
+    .replace(/[，,]/g, "");
+  if (!/^[\d+\-*/().\s]+$/.test(expr)) return null;
+  try { return Function(`"use strict";return (${expr});`)(); }
+  catch { return null; }
+}
+
+function readPayload() {
+  const payload = {
+    roomType: "diamond",
+    installType: $("#install-type").value,
+    modelValue: $("#model-input").value,
+    modelInput: $("#model-input").value,
+    currentMode,
+    currentDirection,
+    shorten: toNumber($("#shorten-input").value, 0),
+    stoneCenterWidth: toNumber($("#stone-center-width").value, 0),
+    sinkTopOutwardValue: toNumber($("#sink-top-outward-value").value, 0),
+    stoneInwardValue: toNumber($("#stone-inward-value").value, 0),
+    angles: { l: $("#angle-l").value, r: $("#angle-r").value },
+    inputs: {},
+    forcedBaseDimensions: forcedDims.base || {},
+    forcedAngleDimensions: forcedDims.angle || {},
+  };
+  if (currentMode === "angle") {
+    payload.inputs = { l: $("#input-l").value, c: $("#input-c").value, r: $("#input-r").value };
+  } else if (currentMode === "cross") {
+    payload.inputs = {
+      l2: $("#input-l").value, c2: $("#input-c").value, r2: $("#input-r").value,
+      distLtoP2: toNumber($("#dist-l-p2").value, 0),
+      distRtoP1: toNumber($("#dist-r-p1").value, 0),
+    };
+  } else if (currentMode === "pentagon") {
+    payload.inputs = {
+      l: $("#input-l").value, r: $("#input-r").value,
+      ls: $("#input-ls").value, rs: $("#input-rs").value,
+    };
+  }
+  return payload;
+}
+
+function fmt(n) { return Number.isFinite(n) ? Math.round(n * 10) / 10 : "—"; }
+
+let drawTimer = null;
+function scheduleDraw() {
+  if (drawTimer) cancelAnimationFrame(drawTimer);
+  $("#diagram-stage").classList.add("computing");
+  drawTimer = requestAnimationFrame(() => {
+    drawDiagram();
+    $("#diagram-stage").classList.remove("computing");
+  });
+}
+
+function drawDiagram() {
+  const errBox = $("#err"); errBox.textContent = "";
+  const svg = $("#main-svg");
+  try {
+    const payload = readPayload();
+    const result = renderProtectedDiagram(payload);
+
+    if (result && result.viewBox) {
+      svg.setAttribute("viewBox", result.viewBox);
+    }
+    svg.innerHTML = (result && result.svgMarkup) || '<text x="50%" y="50%" text-anchor="middle" fill="#94a3b8" font-size="16">请输入数据生成示意图</text>';
+
+    if (result && result.boxHeight) {
+      svg.style.height = Math.min(560, Math.max(380, result.boxHeight)) + "px";
+    }
+
+    const status = $("#status-tag");
+    const ok = result && result.geoLengths && (result.geoLengths.l + result.geoLengths.c + result.geoLengths.r) > 0;
+    status.classList.toggle("ok", !!ok);
+    status.querySelector("span").textContent = ok ? "已计算" : "等待输入";
+
+    window.__lastResult = result;
+    window.__lastPayload = payload;
+
+    // 应用方向标签拖动偏移 + 渲染自定义字段层（覆盖在 render.js 输出之上）
+    try { applyDirectionLabelOffset(); } catch (e) {}
+    try { renderCustomFields(); } catch (e) {}
+
+    // 同步 3D 视图（若已初始化）
+    try { syncThreeFromSvg(svg); } catch (e) { console.warn("3D sync failed:", e); }
+
+    // 玻璃区已展开则同步刷新
+    if ($("#result-area").style.display !== "none") renderGlassResult();
+  } catch (err) {
+    console.error(err);
+    errBox.textContent = "渲染异常：" + (err && err.message || err);
+  }
+}
+
+function renderGlassResult() {
+  const result = window.__lastResult;
+  if (!result || !result.geoLengths) return;
+  const grid = $("#result-grid");
+  const placeholder = $("#glass-placeholder");
+  grid.innerHTML = "";
+
+  const totalH = toNumber($("#total-height-input").value, 2000);
+  const guides = result.displayGuideValues || result.geoLengths || {};
+  const bases = result.displayBaseValues || {};
+
+  // 顶部 3 段尺寸总览
+  ["l","c","r"].forEach((seg, idx) => {
+    const baseV = bases[seg] || 0;
+    const guideV = guides[seg] || 0;
+    const cell = document.createElement("div");
+    cell.className = "result-cell";
+    cell.style.animationDelay = (idx * 40) + "ms";
+    cell.innerHTML = `<span class="k">${seg.toUpperCase()} 段（墙体 → 材料）</span>
+      <span class="v">${fmt(baseV)} <span style="color:var(--muted-2);font-weight:600">→</span> ${fmt(guideV)}</span>`;
+    grid.appendChild(cell);
+  });
+
+  const entry = findGlassEntry($("#model-input").value, "diamond");
+  if (!entry || !Array.isArray(entry.panels) || !entry.panels.length) {
+    placeholder.style.display = "";
+    return;
+  }
+  placeholder.style.display = "none";
+
+  entry.panels.forEach((panel, idx) => {
+    const segVal = toNumber(guides[panel.segment], 0);
+    const w = evalFormula(panel.widthFormula, totalH, segVal);
+    const h = evalFormula(panel.heightFormula, totalH, segVal);
+    const cell = document.createElement("div");
+    cell.className = "result-cell glass";
+    cell.style.animationDelay = ((idx + 3) * 40) + "ms";
+    cell.innerHTML = `<span class="k">${panel.label} ×${panel.count}</span>
+      <span class="v">${fmt(w)} × ${fmt(h)}</span>`;
+    grid.appendChild(cell);
+  });
+}
+
+async function calculateGlassData() {
+  const result = window.__lastResult;
+  if (!result || !result.geoLengths) {
+    $("#err").textContent = "请先输入有效尺寸";
+    return;
+  }
+  await loadGlassCatalog();
+  $("#result-area").style.display = "";
+  renderGlassResult();
+  $("#result-area").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function bindModeButtons(selector, attrName, onChange) {
+  const buttons = $$(selector + " .mode-btn");
+  buttons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      buttons.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      onChange(btn.dataset[attrName]);
+    });
+  });
+}
+
+function updateInstallExtra() {
+  const v = $("#install-type").value;
+  const map = {
+    sink_top: "#sink-top-outward-group",
+    stone_inward: "#stone-inward-group",
+    stone_center: "#stone-center-width-group",
+  };
+  for (const key of Object.keys(map)) {
+    const el = document.querySelector(map[key]);
+    if (!el) continue;
+    const wasHidden = el.style.display === "none";
+    if (key === v) {
+      el.style.display = "";
+      if (wasHidden) {
+        el.classList.remove("control-card--enter");
+        // force reflow to restart animation
+        // eslint-disable-next-line no-unused-expressions
+        el.offsetWidth;
+        el.classList.add("control-card--enter");
+      }
+    } else {
+      el.style.display = "none";
+    }
+  }
+}
+
+function applyModeUI(mode) {
+  $("#input-group-angle").style.display    = mode === "angle"    ? "" : "none";
+  $("#input-group-cross").style.display    = mode === "cross"    ? "" : "none";
+  $("#input-group-pentagon").style.display = mode === "pentagon" ? "" : "none";
+  $("#input-c-wrap").style.display = mode === "pentagon" ? "none" : "";
+}
+
+function init() {
+  $("#install-type").addEventListener("change", () => {
+    updateInstallExtra();
+    scheduleDraw();
+  });
+  updateInstallExtra();
+
+  bindModeButtons("#mode-selector", "mode", (mode) => {
+    currentMode = mode;
+    applyModeUI(mode);
+    scheduleDraw();
+  });
+  bindModeButtons("#direction-selector", "dir", (dir) => {
+    currentDirection = dir;
+    scheduleDraw();
+  });
+
+  document.addEventListener("input", (e) => {
+    if (e.target.matches("input, select")) scheduleDraw();
+  });
+
+  // 回车跳到下一可见输入框
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.target.tagName !== "INPUT") return;
+    e.preventDefault();
+    const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="number"]'))
+      .filter((el) => el.offsetParent !== null && !el.disabled && !el.readOnly);
+    const idx = inputs.indexOf(e.target);
+    if (idx > -1 && idx < inputs.length - 1) {
+      const next = inputs[idx + 1];
+      next.focus();
+      if (typeof next.select === "function") next.select();
+    }
+  });
+
+  $("#glass-calc-btn").addEventListener("click", calculateGlassData);
+
+  moveCaptureToolbarToActiveHost();
+  setupViewSwitcher();
+  setupAdvancedSvgInteractions();
+  setupCaptureButtons();
+  setupReferenceImage();
+
+  scheduleDraw();
+}
+
+/* ============================================================
+   3D 渲染：玻璃墙体可视化（Three.js）
+   ============================================================ */
+const three = {
+  inited: false,
+  active: false,
+  renderer: null,
+  scene: null,
+  camera: null,
+  controls: null,
+  wallsGroup: null,
+  pmrem: null,
+  envTex: null,
+  raf: 0,
+  resizeObs: null,
+  signature: "",
+};
+
+function setupViewSwitcher() {
+  const stage = $("#diagram-stage");
+  const switcher = $("#view-switcher");
+  if (!stage || !switcher) return;
+  const apply = (view) => {
+    switcher.dataset.view = view;
+    switcher.textContent = view === "3d" ? "3D" : "2D";
+    stage.dataset.view = view;
+    if (view === "3d") {
+      $("#three-hint").hidden = false;
+      ensureThreeInited();
+      three.active = true;
+      syncThreeFromSvg($("#main-svg"), { force: true });
+      startThreeLoop();
+    } else {
+      $("#three-hint").hidden = true;
+      three.active = false;
+      stopThreeLoop();
+    }
+  };
+  const toggle = () => apply(switcher.dataset.view === "3d" ? "2d" : "3d");
+  switcher.addEventListener("click", toggle);
+  switcher.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+  });
+}
+
+function ensureThreeInited() {
+  if (three.inited) return;
+  const canvas = $("#three-canvas");
+  const stage = $("#diagram-stage");
+  if (!canvas || !stage) return;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x000000, 0);
+
+  const scene = new THREE.Scene();
+  scene.background = null;
+
+  // 渐变天幕（穹顶 sphere），增强环境氛围
+  const skyGeo = new THREE.SphereGeometry(8000, 32, 16);
+  const skyMat = new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    uniforms: {
+      topColor:    { value: new THREE.Color(0xeaf2f8) },
+      bottomColor: { value: new THREE.Color(0xfdfaf6) },
+    },
+    vertexShader: `varying vec3 vWorld; void main(){ vWorld=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+    fragmentShader: `varying vec3 vWorld; uniform vec3 topColor; uniform vec3 bottomColor; void main(){ float h=normalize(vWorld).y*0.5+0.5; gl_FragColor=vec4(mix(bottomColor,topColor,smoothstep(0.0,1.0,h)),1.0); }`,
+  });
+  scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+  // 环境光照（PMREM RoomEnvironment 提供高质量反射）
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  const envTex = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+  scene.environment = envTex;
+
+  // 主光（半球补光 + 平行光产生阴影）
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xb6c4d0, 0.55));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(2200, 3500, 2400);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 100;
+  sun.shadow.camera.far = 9000;
+  sun.shadow.camera.left = -3000;
+  sun.shadow.camera.right = 3000;
+  sun.shadow.camera.top = 3000;
+  sun.shadow.camera.bottom = -3000;
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 1.5;
+  scene.add(sun);
+
+  // 地面（哑光木纹色 + 接收阴影）
+  const floor = new THREE.Mesh(
+    new THREE.CircleGeometry(6000, 96),
+    new THREE.MeshStandardMaterial({
+      color: 0xe6dfd6,
+      roughness: 0.78,
+      metalness: 0.05,
+    })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // 地面同心圆纹（隐约工程感）
+  for (let i = 1; i <= 4; i++) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(i * 800 - 4, i * 800 + 4, 96),
+      new THREE.MeshBasicMaterial({ color: 0xc8b9a7, transparent: true, opacity: 0.18, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.5;
+    scene.add(ring);
+  }
+
+  // 玻璃墙体容器
+  const walls = new THREE.Group();
+  scene.add(walls);
+
+  const camera = new THREE.PerspectiveCamera(34, 1, 50, 30000);
+  // 初始视角：正面、轻微俯视（参考图视角）
+  camera.position.set(0, 1500, 4200);
+  camera.lookAt(0, 1000, 0);
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 900, 0);
+  controls.minDistance = 800;
+  controls.maxDistance = 8000;
+  controls.maxPolarAngle = Math.PI / 2 - 0.04;
+
+  three.renderer = renderer;
+  three.scene = scene;
+  three.camera = camera;
+  three.controls = controls;
+  three.wallsGroup = walls;
+  three.pmrem = pmrem;
+  three.envTex = envTex;
+  three.inited = true;
+
+  resizeThree();
+  if ("ResizeObserver" in window) {
+    three.resizeObs = new ResizeObserver(() => resizeThree());
+    three.resizeObs.observe(stage);
+  }
+  window.addEventListener("resize", resizeThree);
+}
+
+function resizeThree() {
+  if (!three.inited) return;
+  const stage = $("#diagram-stage");
+  const w = stage.clientWidth;
+  const h = stage.clientHeight;
+  three.renderer.setSize(w, h, false);
+  three.camera.aspect = w / Math.max(1, h);
+  three.camera.updateProjectionMatrix();
+}
+
+function startThreeLoop() {
+  if (!three.inited || three.raf) return;
+  const tick = () => {
+    if (!three.active) { three.raf = 0; return; }
+    three.controls.update();
+    three.renderer.render(three.scene, three.camera);
+    updateThreeLabels();
+    three.raf = requestAnimationFrame(tick);
+  };
+  three.raf = requestAnimationFrame(tick);
+}
+
+function stopThreeLoop() {
+  if (three.raf) cancelAnimationFrame(three.raf);
+  three.raf = 0;
+}
+
+// 从 SVG 解析 path.svg-guide 的 4 个材料尺寸点
+function extractGuidePoints(svg) {
+  const guide = svg.querySelector("path.svg-guide");
+  if (!guide) return null;
+  const d = guide.getAttribute("d") || "";
+  const nums = d.match(/-?\d+(?:\.\d+)?/g);
+  if (!nums || nums.length < 8) return null;
+  const pts = [];
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    pts.push({ x: parseFloat(nums[i]), y: parseFloat(nums[i + 1]) });
+  }
+  return pts;
+}
+
+// 把 SVG 中已渲染的 guide 折线投影成 3D 玻璃墙
+function syncThreeFromSvg(svg, opts = {}) {
+  if (!three.inited || (!three.active && !opts.force)) return;
+  const pts2d = extractGuidePoints(svg);
+  const totalH = Math.max(600, toNumber($("#total-height-input")?.value, 2000));
+  const dirSig = (window.__lastPayload && window.__lastPayload.currentDirection) || "left";
+  const sig = JSON.stringify({ pts2d, totalH, dirSig });
+  if (sig === three.signature && !opts.force) return;
+  three.signature = sig;
+
+  // 清空旧墙体
+  three.wallsGroup.clear();
+  if (!pts2d || pts2d.length < 2) return;
+
+  // —— 真实毫米校准 ——
+  // SVG 中 guide 折线段的像素长度 vs result.geoLengths（实际 mm 长度）反推比例
+  const segPx = [];
+  for (let i = 0; i + 1 < pts2d.length; i++) {
+    const dx = pts2d[i + 1].x - pts2d[i].x;
+    const dy = pts2d[i + 1].y - pts2d[i].y;
+    segPx.push(Math.hypot(dx, dy));
+  }
+  const geo = (window.__lastResult && window.__lastResult.geoLengths) || null;
+  const segMM = geo ? [geo.l || 0, geo.c || 0, geo.r || 0] : [];
+  let mmPerPx = 0, denom = 0;
+  for (let i = 0; i < segPx.length; i++) {
+    const mm = segMM[i] || 0;
+    if (mm > 0 && segPx[i] > 0.5) { mmPerPx += mm / segPx[i]; denom++; }
+  }
+  // 若取不到比例（无型号输入或几何为 0），回退到把最长边映射到 2400mm
+  if (denom > 0) {
+    mmPerPx = mmPerPx / denom;
+  } else {
+    const xs = pts2d.map((p) => p.x), ys = pts2d.map((p) => p.y);
+    const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) || 1;
+    mmPerPx = 2400 / span;
+  }
+
+  // 居中：以 SVG 坐标包围盒中心为原点；y 翻转（SVG 向下 → three z 向前）
+  const xs2 = pts2d.map((p) => p.x), ys2 = pts2d.map((p) => p.y);
+  const cx = (Math.min(...xs2) + Math.max(...xs2)) / 2;
+  const cy = (Math.min(...ys2) + Math.max(...ys2)) / 2;
+  const pts3d = pts2d.map((p) => new THREE.Vector3((p.x - cx) * mmPerPx, 0, (p.y - cy) * mmPerPx));
+
+  // 真实毫米尺度下的墙厚（10mm 玻璃）和墙高（用户输入）
+  const wallH = totalH;
+  const wallT = 10;
+
+  // 缓存段数据用于 3D label 叠加 + 截图
+  const segLabels = ["L", "C", "R"];
+  three.segData = [];
+  for (let i = 0; i + 1 < pts3d.length; i++) {
+    const a = pts3d[i], b = pts3d[i + 1];
+    const mid = new THREE.Vector3((a.x + b.x) / 2, wallH, (a.z + b.z) / 2);
+    const mm = (window.__lastResult && window.__lastResult.geoLengths)
+      ? [window.__lastResult.geoLengths.l || 0, window.__lastResult.geoLengths.c || 0, window.__lastResult.geoLengths.r || 0][i]
+      : 0;
+    three.segData.push({ mid, mm, label: segLabels[i] || `S${i+1}` });
+  }
+
+  const glassMat = new THREE.MeshPhysicalMaterial({
+    color: 0xcfe1eb,
+    metalness: 0,
+    roughness: 0.04,
+    transmission: 0.92,
+    thickness: 12,
+    ior: 1.45,
+    transparent: true,
+    opacity: 0.55,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+    side: THREE.DoubleSide,
+    envMapIntensity: 1.1,
+  });
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x1f2a37, transparent: true, opacity: 0.55 });
+  const frameMat = new THREE.MeshStandardMaterial({ color: 0x1c1714, roughness: 0.45, metalness: 0.6 });
+  const handleMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.28, metalness: 0.85 });
+
+  // —— 全包框 + 门扇参数（mm，按客户工艺规范）——
+  const TOP_BAR_FACE  = 17;  // 上弓看面
+  const BOT_BAR_FACE  = 12;  // 下弓看面
+  const SIDE_END_FACE = 15;  // 左右边料看面（最外侧端柱单边）
+  const MID_POST_HALF = 12;  // 中柱单边看面（→ 直径 24）
+  const FRAME_D = 30;        // 边框厚（垂直玻璃面方向）
+  const DOOR_TB_FACE     = 12; // 门扇上下包看面
+  const DOOR_HANDLE_SIDE = 12; // 门扇拉手侧竖包看面
+  const DOOR_HINGE_SIDE  = 18; // 门扇转轴侧竖包看面
+  const DOOR_FD = 26;          // 门扇框厚
+  const DOOR_GAP = 6;          // 门扇与门框间隙
+  const HANDLE_LEN = 1000;     // 1m 拉手
+  const HANDLE_DIA = 22;
+  const HANDLE_BOTTOM_FROM_GROUND = 100; // 拉手底端离地高
+  const HANDLE_OFFSET_FROM_EDGE = 80;    // 拉手距开启侧门扇内边
+  const HANDLE_STAND_OFF = 38;           // 拉手离玻璃面距离
+
+  // 找门扇：奇数段时取最中间一段；其余情况无门扇
+  const segCount = pts3d.length - 1;
+  const doorIdx = (segCount >= 1 && segCount % 2 === 1) ? Math.floor(segCount / 2) : -1;
+  // 转轴 / 拉手对侧：currentDirection 为转轴侧；拉手在另一侧
+  const dirRaw = (window.__lastPayload && window.__lastPayload.currentDirection) || "left";
+  const hingeOnLeft = dirRaw !== "right"; // "left"/"none" 默认转轴在左
+  const handleOnLeft = !hingeOnLeft;
+
+  // 逐段构建：每两个相邻点之间一片玻璃 + 全包边框
+  for (let i = 0; i + 1 < pts3d.length; i++) {
+    const a = pts3d[i];
+    const b = pts3d[i + 1];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len = Math.sqrt(dx * dx + dz * dz);
+    if (len < 1) continue;
+    const angle = Math.atan2(dz, dx);
+    const isDoor = (i === doorIdx);
+
+    // 段中心局部坐标系
+    const seg = new THREE.Group();
+    seg.position.set((a.x + b.x) / 2, 0, (a.z + b.z) / 2);
+    seg.rotation.y = -angle;
+    three.wallsGroup.add(seg);
+
+    // —— 上下横档（弓） ——
+    const top = new THREE.Mesh(
+      new THREE.BoxGeometry(len, TOP_BAR_FACE, FRAME_D),
+      frameMat
+    );
+    top.position.set(0, wallH - TOP_BAR_FACE / 2, 0);
+    top.castShadow = true; top.receiveShadow = true;
+    seg.add(top);
+
+    const bot = new THREE.Mesh(
+      new THREE.BoxGeometry(len, BOT_BAR_FACE, FRAME_D),
+      frameMat
+    );
+    bot.position.set(0, BOT_BAR_FACE / 2, 0);
+    bot.castShadow = true; bot.receiveShadow = true;
+    seg.add(bot);
+
+    // 玻璃尺寸：去除上下框 + 左右两侧立柱占位（用相邻点决定占位）
+    const leftIsEnd  = (i === 0);
+    const rightIsEnd = (i === pts3d.length - 2);
+    const leftFace  = leftIsEnd  ? SIDE_END_FACE : MID_POST_HALF;
+    const rightFace = rightIsEnd ? SIDE_END_FACE : MID_POST_HALF;
+    const glassInsetTop = TOP_BAR_FACE;
+    const glassInsetBot = BOT_BAR_FACE;
+    const innerH = wallH - glassInsetTop - glassInsetBot;
+    const glassW = len - leftFace - rightFace;
+    const glassCX = (rightFace - leftFace) / 2; // 中心略偏移以贴合两端立柱
+    const glassCY = glassInsetBot + innerH / 2;
+
+    if (isDoor) {
+      // —— 门扇：在外框内孔放置一个独立全包门扇 ——
+      // 外框内孔
+      const openW = glassW;
+      const openH = innerH;
+      // 门扇外缘（与外框留 DOOR_GAP）
+      const dW = openW - DOOR_GAP * 2;
+      const dH = openH - DOOR_GAP * 2;
+      const dCX = glassCX;
+      const dCY = glassCY;
+
+      // 门扇 4 边：拉手侧 12 / 转轴侧 18 / 上下 12
+      const leftFaceDoor  = handleOnLeft ? DOOR_HANDLE_SIDE : DOOR_HINGE_SIDE;
+      const rightFaceDoor = handleOnLeft ? DOOR_HINGE_SIDE  : DOOR_HANDLE_SIDE;
+
+      const dTop = new THREE.Mesh(new THREE.BoxGeometry(dW, DOOR_TB_FACE, DOOR_FD), frameMat);
+      dTop.position.set(dCX, dCY + dH / 2 - DOOR_TB_FACE / 2, 0);
+      seg.add(dTop);
+      const dBot = new THREE.Mesh(new THREE.BoxGeometry(dW, DOOR_TB_FACE, DOOR_FD), frameMat);
+      dBot.position.set(dCX, dCY - dH / 2 + DOOR_TB_FACE / 2, 0);
+      seg.add(dBot);
+      const dLef = new THREE.Mesh(new THREE.BoxGeometry(leftFaceDoor, dH - DOOR_TB_FACE * 2, DOOR_FD), frameMat);
+      dLef.position.set(dCX - dW / 2 + leftFaceDoor / 2, dCY, 0);
+      seg.add(dLef);
+      const dRig = new THREE.Mesh(new THREE.BoxGeometry(rightFaceDoor, dH - DOOR_TB_FACE * 2, DOOR_FD), frameMat);
+      dRig.position.set(dCX + dW / 2 - rightFaceDoor / 2, dCY, 0);
+      seg.add(dRig);
+      [dTop, dBot, dLef, dRig].forEach((m) => { m.castShadow = true; m.receiveShadow = true; });
+
+      // 门扇玻璃
+      const dGlassW = dW - leftFaceDoor - rightFaceDoor;
+      const dGlassH = dH - DOOR_TB_FACE * 2;
+      const dGlass = new THREE.Mesh(new THREE.BoxGeometry(dGlassW, dGlassH, wallT), glassMat);
+      dGlass.position.set(dCX + (rightFaceDoor - leftFaceDoor) / 2, dCY, 0);
+      dGlass.castShadow = true; dGlass.receiveShadow = true;
+      seg.add(dGlass);
+      const dEdges = new THREE.LineSegments(new THREE.EdgesGeometry(dGlass.geometry, 25), edgeMat);
+      dEdges.position.copy(dGlass.position);
+      seg.add(dEdges);
+
+      // —— 1m 拉手：底端离地 100mm，安装在门扇靠开启侧 ——
+      // 拉手 X：handleOnLeft → 在门扇左侧（=负 X 边）
+      const handleSign = handleOnLeft ? -1 : 1;
+      const handleEdgeX = dCX + handleSign * (dW / 2 - (handleOnLeft ? leftFaceDoor : rightFaceDoor));
+      const handleX = handleEdgeX - handleSign * HANDLE_OFFSET_FROM_EDGE;
+      const standoffZ = wallT / 2 + HANDLE_STAND_OFF / 2;
+      const handleZ = wallT / 2 + HANDLE_STAND_OFF + HANDLE_DIA / 2;
+      const handleCenterY = HANDLE_BOTTOM_FROM_GROUND + HANDLE_LEN / 2;
+
+      const bar = new THREE.Mesh(
+        new THREE.CylinderGeometry(HANDLE_DIA / 2, HANDLE_DIA / 2, HANDLE_LEN, 24),
+        handleMat
+      );
+      bar.position.set(handleX, handleCenterY, handleZ);
+      bar.castShadow = true;
+      seg.add(bar);
+      [-1, 1].forEach((s) => {
+        const standoff = new THREE.Mesh(
+          new THREE.CylinderGeometry(HANDLE_DIA / 2 + 4, HANDLE_DIA / 2 + 4, HANDLE_STAND_OFF, 20),
+          handleMat
+        );
+        standoff.rotation.x = Math.PI / 2;
+        standoff.position.set(handleX, handleCenterY + s * (HANDLE_LEN / 2 - 40), standoffZ);
+        standoff.castShadow = true;
+        seg.add(standoff);
+      });
+      // 端帽
+      [-1, 1].forEach((s) => {
+        const cap = new THREE.Mesh(
+          new THREE.SphereGeometry(HANDLE_DIA / 2 + 1, 16, 12),
+          handleMat
+        );
+        cap.position.set(handleX, handleCenterY + s * (HANDLE_LEN / 2), handleZ);
+        cap.castShadow = true;
+        seg.add(cap);
+      });
+    } else {
+      // 固定扇：玻璃完整充满外框内孔
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(glassW, innerH, wallT), glassMat);
+      panel.position.set(glassCX, glassCY, 0);
+      panel.castShadow = true; panel.receiveShadow = true;
+      seg.add(panel);
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(panel.geometry, 25), edgeMat);
+      edges.position.copy(panel.position);
+      seg.add(edges);
+    }
+  }
+
+  // 各折点处的金属立柱：端柱直径 = 2*15，中柱直径 = 2*12（每段单边看面 12）
+  for (let i = 0; i < pts3d.length; i++) {
+    const p = pts3d[i];
+    const isEnd = (i === 0 || i === pts3d.length - 1);
+    const r = isEnd ? SIDE_END_FACE : MID_POST_HALF;
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r, wallH + 2, 20),
+      frameMat
+    );
+    post.position.set(p.x, (wallH + 2) / 2, p.z);
+    post.castShadow = true;
+    post.receiveShadow = true;
+    three.wallsGroup.add(post);
+  }
+
+  // 控制器目标对准结构中心
+  // 自适应相机距离：基于真实毫米尺寸
+  const xs3 = pts3d.map((p) => p.x), zs3 = pts3d.map((p) => p.z);
+  const footprintMM = Math.max(
+    Math.max(...xs3) - Math.min(...xs3),
+    Math.max(...zs3) - Math.min(...zs3)
+  ) || 2000;
+  const camDist = Math.max(2200, 1.7 * Math.max(footprintMM, wallH));
+
+  // 仅在首次构建或显式 force 时重置相机；之后保留用户旋转/缩放结果
+  const isFirstBuild = !three.cameraInitialized;
+  if (isFirstBuild || opts.forceCamera) {
+    three.controls.target.set(0, wallH * 0.45, 0);
+    const cur = three.camera.position;
+    const dir = new THREE.Vector3(cur.x, cur.y, cur.z).sub(three.controls.target);
+    if (dir.length() < 1) dir.set(0, 0.36, 1);
+    dir.setLength(camDist);
+    three.camera.position.copy(three.controls.target.clone().add(dir));
+    three.cameraInitialized = true;
+  }
+}
+
+function moveCaptureToolbarToActiveHost() {
+  const toolbar = document.getElementById("capture-toolbar");
+  const staging = document.getElementById("capture-toolbar-staging");
+  if (!toolbar) return;
+  const host = document.getElementById("capture-host-stage");
+  if (host) host.appendChild(toolbar);
+  else if (staging) staging.appendChild(toolbar);
+}
+
+/* ============================================================
+   高级 SVG 交互：方向标签拖拽 + 右键菜单 + 插入字段（持久化 + 拖拽 + 删除）
+   ============================================================ */
+const LONG_PRESS_MS = 350;
+const MOVE_TOL = 8;
+const FIELDS_LS_KEY = "huahui:insertedFields:v1";
+const DIR_OFFSET_LS_KEY = "huahui:dirLabelOffset:v1";
+const FORCED_LS_KEY = "huahui:forcedDims:v1";
+
+let directionLabelOffset = loadDirOffset();
+let insertedFields = loadFields();
+let nextFieldId = insertedFields.reduce((m, f) => Math.max(m, f.id || 0), 0) + 1;
+let selectedFieldId = null;
+let forcedDims = loadForced(); // { base: { diamond: {l,c,r,...} }, angle: { diamond: {"angle-l","angle-r"} } }
+
+let dragState = null; // { kind, pointerId, startSvg, startOffset, startRatio, target }
+
+function loadDirOffset() {
+  try { return JSON.parse(localStorage.getItem(DIR_OFFSET_LS_KEY)) || { dx: 0, dy: 0 }; }
+  catch { return { dx: 0, dy: 0 }; }
+}
+function saveDirOffset() {
+  try { localStorage.setItem(DIR_OFFSET_LS_KEY, JSON.stringify(directionLabelOffset)); } catch {}
+}
+function loadFields() {
+  try { const v = JSON.parse(localStorage.getItem(FIELDS_LS_KEY)); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+function saveFields() {
+  try { localStorage.setItem(FIELDS_LS_KEY, JSON.stringify(insertedFields)); } catch {}
+}
+function loadForced() {
+  try { return JSON.parse(localStorage.getItem(FORCED_LS_KEY)) || { base: {}, angle: {} }; }
+  catch { return { base: {}, angle: {} }; }
+}
+function saveForced() {
+  try { localStorage.setItem(FORCED_LS_KEY, JSON.stringify(forcedDims)); } catch {}
+}
+function setForcedValue(scope, roomType, segment, value) {
+  forcedDims[scope] = forcedDims[scope] || {};
+  forcedDims[scope][roomType] = forcedDims[scope][roomType] || {};
+  if (value == null || !Number.isFinite(value)) {
+    delete forcedDims[scope][roomType][segment];
+  } else {
+    forcedDims[scope][roomType][segment] = value;
+  }
+  saveForced();
+}
+function clearAllForced() {
+  forcedDims = { base: {}, angle: {} };
+  saveForced();
+}
+
+function getSvgPoint(svg, clientX, clientY) {
+  const pt = svg.createSVGPoint();
+  pt.x = clientX; pt.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return { x: 0, y: 0 };
+  const inv = ctm.inverse();
+  const out = pt.matrixTransform(inv);
+  return { x: out.x, y: out.y };
+}
+function getSvgViewBox(svg) {
+  const vb = svg.viewBox && svg.viewBox.baseVal;
+  if (vb && vb.width > 0 && vb.height > 0) {
+    return { x: vb.x, y: vb.y, w: vb.width, h: vb.height };
+  }
+  return { x: 0, y: 0, w: 500, h: 280 };
+}
+
+function applyDirectionLabelOffset() {
+  const svg = $("#main-svg");
+  const lab = svg.querySelector("#direction-label");
+  if (!lab) return;
+  const bx = parseFloat(lab.getAttribute("data-base-x"));
+  const by = parseFloat(lab.getAttribute("data-base-y"));
+  if (!Number.isFinite(bx) || !Number.isFinite(by)) return;
+  lab.setAttribute("x", bx + (directionLabelOffset.dx || 0));
+  lab.setAttribute("y", by + (directionLabelOffset.dy || 0));
+}
+
+function renderCustomFields() {
+  const svg = $("#main-svg");
+  let layer = svg.querySelector("g.custom-field-layer");
+  if (layer) layer.remove();
+  if (!insertedFields.length) return;
+  layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  layer.setAttribute("class", "custom-field-layer");
+  const vb = getSvgViewBox(svg);
+  insertedFields.forEach((f) => {
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("class", "svg-custom-field" + (f.id === selectedFieldId ? " is-selected" : ""));
+    t.setAttribute("data-field-id", String(f.id));
+    t.setAttribute("x", String(vb.x + (f.xRatio || 0) * vb.w));
+    t.setAttribute("y", String(vb.y + (f.yRatio || 0) * vb.h));
+    t.textContent = f.label || "";
+    layer.appendChild(t);
+  });
+  svg.appendChild(layer);
+}
+
+function setSelectedField(id) {
+  selectedFieldId = id;
+  $("#main-svg").querySelectorAll("text.svg-custom-field").forEach((el) => {
+    el.classList.toggle("is-selected", parseInt(el.dataset.fieldId, 10) === id);
+  });
+}
+
+function setupAdvancedSvgInteractions() {
+  const svg = $("#main-svg");
+  if (!svg) return;
+
+  svg.addEventListener("pointerdown", onSvgPointerDown);
+  document.addEventListener("pointermove", onDocPointerMove);
+  document.addEventListener("pointerup", onDocPointerUp);
+  document.addEventListener("pointercancel", onDocPointerUp);
+
+  // 右键菜单
+  svg.addEventListener("contextmenu", onSvgContextMenu);
+  document.addEventListener("pointerdown", (e) => {
+    const menu = $("#force-edit-menu");
+    if (!menu.hidden && !menu.contains(e.target)) hideMenu();
+  }, true);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { hideMenu(); }
+    if ((e.key === "Delete" || e.key === "Backspace") &&
+        selectedFieldId != null &&
+        !(e.target.matches && e.target.matches("input, textarea, [contenteditable]"))) {
+      e.preventDefault();
+      deleteField(selectedFieldId);
+    }
+  });
+  window.addEventListener("blur", hideMenu);
+  window.addEventListener("resize", hideMenu);
+  document.addEventListener("scroll", hideMenu, true);
+}
+
+function onSvgPointerDown(e) {
+  if (e.button !== 0) return;
+  const svg = e.currentTarget;
+  const target = e.target;
+  // 取消选中（点空白）
+  if (!target.closest("text.svg-custom-field")) {
+    setSelectedField(null);
+  }
+  // 自定义字段长按拖拽
+  const customEl = target.closest("text.svg-custom-field");
+  if (customEl) {
+    const id = parseInt(customEl.dataset.fieldId, 10);
+    setSelectedField(id);
+    const f = insertedFields.find((x) => x.id === id);
+    if (!f) return;
+    startLongPressDrag({
+      kind: "field",
+      pointerId: e.pointerId,
+      target: customEl,
+      startClient: { x: e.clientX, y: e.clientY },
+      startSvg: getSvgPoint(svg, e.clientX, e.clientY),
+      startRatio: { x: f.xRatio, y: f.yRatio },
+      fieldId: id,
+    });
+    return;
+  }
+  // 方向标签长按拖拽
+  const dirEl = target.closest("text.svg-direction-label, #direction-label");
+  if (dirEl) {
+    startLongPressDrag({
+      kind: "dir",
+      pointerId: e.pointerId,
+      target: dirEl,
+      startClient: { x: e.clientX, y: e.clientY },
+      startSvg: getSvgPoint(svg, e.clientX, e.clientY),
+      startOffset: { ...directionLabelOffset },
+    });
+    return;
+  }
+}
+
+function startLongPressDrag(spec) {
+  cancelLongPress();
+  dragState = { ...spec, dragging: false, longPressTimer: null };
+  dragState.longPressTimer = setTimeout(() => {
+    if (!dragState) return;
+    dragState.dragging = true;
+    if (spec.target && spec.target.classList) spec.target.classList.add("is-dragging");
+    try { spec.target.setPointerCapture && spec.target.setPointerCapture(spec.pointerId); } catch {}
+  }, LONG_PRESS_MS);
+}
+function cancelLongPress() {
+  if (dragState && dragState.longPressTimer) clearTimeout(dragState.longPressTimer);
+}
+
+function onDocPointerMove(e) {
+  if (!dragState || dragState.pointerId !== e.pointerId) return;
+  const dx = e.clientX - dragState.startClient.x;
+  const dy = e.clientY - dragState.startClient.y;
+  if (!dragState.dragging) {
+    if (Math.hypot(dx, dy) > MOVE_TOL) {
+      // 移动太大，取消长按
+      cancelLongPress();
+      dragState = null;
+    }
+    return;
+  }
+  const svg = $("#main-svg");
+  const cur = getSvgPoint(svg, e.clientX, e.clientY);
+  if (dragState.kind === "dir") {
+    directionLabelOffset = {
+      dx: (dragState.startOffset.dx || 0) + (cur.x - dragState.startSvg.x),
+      dy: (dragState.startOffset.dy || 0) + (cur.y - dragState.startSvg.y),
+    };
+    applyDirectionLabelOffset();
+  } else if (dragState.kind === "field") {
+    const vb = getSvgViewBox(svg);
+    const f = insertedFields.find((x) => x.id === dragState.fieldId);
+    if (!f) return;
+    f.xRatio = dragState.startRatio.x + (cur.x - dragState.startSvg.x) / vb.w;
+    f.yRatio = dragState.startRatio.y + (cur.y - dragState.startSvg.y) / vb.h;
+    f.xRatio = Math.max(0, Math.min(1, f.xRatio));
+    f.yRatio = Math.max(0, Math.min(1, f.yRatio));
+    const el = dragState.target;
+    el.setAttribute("x", String(vb.x + f.xRatio * vb.w));
+    el.setAttribute("y", String(vb.y + f.yRatio * vb.h));
+  }
+}
+
+function onDocPointerUp(e) {
+  if (!dragState || dragState.pointerId !== e.pointerId) return;
+  cancelLongPress();
+  if (dragState.dragging) {
+    if (dragState.target && dragState.target.classList) dragState.target.classList.remove("is-dragging");
+    if (dragState.kind === "dir") saveDirOffset();
+    if (dragState.kind === "field") saveFields();
+  }
+  dragState = null;
+}
+
+/* ---------- 右键菜单 ---------- */
+function onSvgContextMenu(e) {
+  e.preventDefault();
+  const svg = e.currentTarget;
+  const items = [];
+  const forceEl = e.target.closest && e.target.closest("[data-force-editable='true']");
+  const customEl = e.target.closest && e.target.closest("text.svg-custom-field");
+  if (forceEl) {
+    const scope   = forceEl.getAttribute("data-force-scope") || "base";
+    const type    = forceEl.getAttribute("data-force-type") || "diamond";
+    const segment = forceEl.getAttribute("data-force-segment") || "";
+    const rawVal  = forceEl.getAttribute("data-force-value") || "";
+    const active  = forceEl.getAttribute("data-force-active") === "true";
+    const unit    = scope === "angle" ? "°" : "mm";
+    items.push({
+      label: active ? `修改强制值（当前 ${rawVal}${unit}）` : `强制修改原值（${rawVal}${unit}）`,
+      action: () => openForceEditPrompt(scope, type, segment, rawVal, unit),
+    });
+    if (active) {
+      items.push({
+        label: "重置该值",
+        danger: true,
+        action: () => { setForcedValue(scope, type, segment, null); scheduleDraw(); },
+      });
+    }
+    const hasAnyForced =
+      Object.keys(forcedDims.base || {}).some((k) => Object.keys(forcedDims.base[k] || {}).length) ||
+      Object.keys(forcedDims.angle || {}).some((k) => Object.keys(forcedDims.angle[k] || {}).length);
+    if (hasAnyForced) {
+      items.push({
+        label: "清空所有强制值",
+        danger: true,
+        action: () => { clearAllForced(); scheduleDraw(); },
+      });
+    }
+  } else if (customEl) {
+    const id = parseInt(customEl.dataset.fieldId, 10);
+    setSelectedField(id);
+    items.push({ label: "编辑文本", action: () => editField(id) });
+    items.push({ label: "删除字段", danger: true, action: () => deleteField(id) });
+  } else {
+    const sp = getSvgPoint(svg, e.clientX, e.clientY);
+    const vb = getSvgViewBox(svg);
+    const xRatio = (sp.x - vb.x) / vb.w;
+    const yRatio = (sp.y - vb.y) / vb.h;
+    items.push({ label: "插入字段", action: () => insertFieldAt(xRatio, yRatio) });
+    items.push({ label: "重置方向标签", action: () => {
+      directionLabelOffset = { dx: 0, dy: 0 };
+      saveDirOffset();
+      applyDirectionLabelOffset();
+    }});
+    if (insertedFields.length) {
+      items.push({ label: "清空所有自定义字段", danger: true, action: () => {
+        insertedFields = []; selectedFieldId = null; saveFields(); renderCustomFields();
+      }});
+    }
+  }
+  showMenu(e.clientX, e.clientY, items);
+}
+
+function openForceEditPrompt(scope, type, segment, currentValue, unit) {
+  const promptMsg = scope === "angle"
+    ? `请输入新角度（${unit}），留空或输入 0 取消强制：`
+    : `请输入新长度（${unit}），留空取消强制：`;
+  const input = window.prompt(promptMsg, currentValue || "");
+  if (input === null) return;
+  const trimmed = String(input).trim();
+  if (trimmed === "") {
+    setForcedValue(scope, type, segment, null);
+    scheduleDraw();
+    return;
+  }
+  const num = parseFloat(trimmed);
+  if (!Number.isFinite(num)) {
+    alert("请输入有效数字");
+    return;
+  }
+  setForcedValue(scope, type, segment, num);
+  scheduleDraw();
+}
+
+function showMenu(clientX, clientY, items) {
+  const menu = $("#force-edit-menu");
+  menu.innerHTML = "";
+  items.forEach((it) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "force-edit-menu__item" + (it.danger ? " force-edit-menu__item--danger" : "");
+    btn.textContent = it.label;
+    btn.addEventListener("click", () => { hideMenu(); it.action(); });
+    menu.appendChild(btn);
+  });
+  menu.hidden = false;
+  // 边界修正
+  menu.style.left = "0px"; menu.style.top = "0px";
+  const rect = menu.getBoundingClientRect();
+  const x = Math.min(clientX, window.innerWidth - rect.width - 8);
+  const y = Math.min(clientY, window.innerHeight - rect.height - 8);
+  menu.style.left = Math.max(8, x) + "px";
+  menu.style.top  = Math.max(8, y) + "px";
+}
+function hideMenu() {
+  const menu = $("#force-edit-menu");
+  if (menu) menu.hidden = true;
+}
+
+function insertFieldAt(xRatio, yRatio) {
+  const label = window.prompt("插入字段文本：", "备注");
+  if (!label) return;
+  const id = nextFieldId++;
+  insertedFields.push({ id, label: label.trim(), xRatio, yRatio });
+  saveFields();
+  selectedFieldId = id;
+  renderCustomFields();
+}
+function editField(id) {
+  const f = insertedFields.find((x) => x.id === id);
+  if (!f) return;
+  const v = window.prompt("修改字段文本：", f.label || "");
+  if (v == null) return;
+  f.label = v.trim();
+  saveFields();
+  renderCustomFields();
+}
+function deleteField(id) {
+  insertedFields = insertedFields.filter((x) => x.id !== id);
+  if (selectedFieldId === id) selectedFieldId = null;
+  saveFields();
+  renderCustomFields();
+}
+
+/* ============================================================
+   截图 / 编辑（捕获 SVG 或 3D Canvas → PNG）
+   ============================================================ */
+function setupCaptureButtons() {
+  const capBtn = document.getElementById("capture-btn");
+  const editBtn = document.getElementById("capture-edit-btn");
+  if (capBtn) capBtn.addEventListener("click", () => {
+    exportSnapshot().catch((err) => setCapStatus(err.message || "截图失败", true));
+  });
+  if (editBtn) editBtn.addEventListener("click", () => {
+    openSnapshotEditor().catch((err) => setCapStatus(err.message || "无法打开编辑器", true));
+  });
+  const sigInput = document.getElementById("capture-signature");
+  if (sigInput) {
+    try { sigInput.value = localStorage.getItem("huahui:signature:v1") || ""; } catch {}
+    sigInput.addEventListener("input", () => {
+      try { localStorage.setItem("huahui:signature:v1", sigInput.value); } catch {}
+    });
+  }
+}
+
+function setCapStatus(msg, isError) {
+  const el = document.getElementById("capture-status");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.classList.toggle("error", !!isError);
+  el.classList.toggle("success", !!msg && !isError);
+}
+
+function buildSnapshotBlob() {
+  const stage = document.getElementById("diagram-stage");
+  const view = stage && stage.dataset.view === "3d" ? "3d" : "2d";
+  const left = view === "3d" ? snapshot3DBlob() : snapshotSvgBlob();
+  return left.then((blob) => composeSnapshotWithReference(blob));
+}
+
+function snapshotSvgBlob() {
+  return new Promise((resolve, reject) => {
+    const svg = document.getElementById("main-svg");
+    if (!svg) return reject(new Error("矢量图不存在"));
+    if (!svg.querySelector("path, line, polyline, polygon, circle, rect")) {
+      return reject(new Error("请先生成有效矢量图"));
+    }
+    const vb = svg.viewBox && svg.viewBox.baseVal;
+    let minX = 0, minY = 0, vbW = 0, vbH = 0;
+    if (vb && vb.width > 0 && vb.height > 0) {
+      minX = vb.x; minY = vb.y; vbW = vb.width; vbH = vb.height;
+    } else {
+      const bb = svg.getBoundingClientRect();
+      vbW = Math.max(bb.width, 200); vbH = Math.max(bb.height, 200);
+    }
+    const PAD = 20;
+    const exMinX = minX - PAD, exMinY = minY - PAD;
+    const exW = vbW + PAD * 2, exH = vbH + PAD * 2;
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    // 构造干净的导出 SVG（白底 + 克隆的内容 + 签名）
+    const exSvg = document.createElementNS(SVG_NS, "svg");
+    exSvg.setAttribute("xmlns", SVG_NS);
+    exSvg.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+    exSvg.setAttribute("viewBox", `${exMinX} ${exMinY} ${exW} ${exH}`);
+    const SCALE = 4;
+    const outW = Math.round(exW * SCALE);
+    const outH = Math.round(exH * SCALE);
+    exSvg.setAttribute("width", outW);
+    exSvg.setAttribute("height", outH);
+
+    const bg = document.createElementNS(SVG_NS, "rect");
+    bg.setAttribute("x", exMinX);
+    bg.setAttribute("y", exMinY);
+    bg.setAttribute("width", exW);
+    bg.setAttribute("height", exH);
+    bg.setAttribute("fill", "#ffffff");
+    exSvg.appendChild(bg);
+
+    // 注入 SVG 必需样式（具体颜色，避免 var() 在 data-URL 失效导致的黑色填充）
+    const cs = getComputedStyle(document.documentElement);
+    const wallC  = (cs.getPropertyValue("--wall-color")  || "#1c1714").trim();
+    const guideC = (cs.getPropertyValue("--guide-color") || "#d61f1f").trim();
+    const angleC = (cs.getPropertyValue("--angle-color") || "#9a6b3e").trim();
+    const labelC = (cs.getPropertyValue("--label-color") || "#1c1714").trim();
+    const gtxtC  = (cs.getPropertyValue("--guide-text-color") || guideC).trim();
+    const styleEl = document.createElementNS(SVG_NS, "style");
+    styleEl.textContent = `
+      .svg-wall { stroke: ${wallC}; stroke-width: 4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+      .svg-guide { stroke: ${guideC}; stroke-width: 2.5; fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 4 2; opacity: .95; }
+      .svg-angle-arc { fill: none; stroke: ${angleC}; stroke-width: 2; }
+      .svg-text, .svg-guide-text, .svg-angle-text {
+        font-weight: 800; font-family: 'Inter','Microsoft YaHei UI',sans-serif;
+        text-anchor: middle; dominant-baseline: middle;
+        paint-order: stroke; stroke: #ffffff; stroke-width: 3.5px;
+      }
+      .svg-text { fill: ${labelC}; font-size: 17px; }
+      .svg-guide-text { fill: ${gtxtC}; font-size: 17px; }
+      .svg-angle-text { fill: ${angleC}; font-size: 18px; }
+      .svg-direction-label {
+        fill: ${guideC}; font-weight: 800; font-size: 22px;
+        font-family: 'Inter','Microsoft YaHei UI',sans-serif;
+        paint-order: stroke; stroke: #ffffff; stroke-width: 4px;
+      }
+      .svg-custom-field {
+        fill: ${labelC}; font-size: 18px; font-weight: 800;
+        font-family: 'Microsoft YaHei UI', sans-serif;
+        paint-order: stroke; stroke: #ffffff; stroke-width: 4px;
+      }
+      .svg-custom-field.is-selected { fill: ${guideC}; }
+    `;
+    exSvg.appendChild(styleEl);
+
+    Array.from(svg.childNodes).forEach((node) => {
+      // 跳过占位文字（"请输入数据生成示意图"）
+      if (node.nodeType === 1 && node.tagName === "text" && /请输入数据/.test(node.textContent || "")) return;
+      exSvg.appendChild(node.cloneNode(true));
+    });
+
+    const sig = (document.getElementById("capture-signature") || {}).value || "";
+    const stamp = (sig ? `制图：${sig} · ` : "") + new Date().toLocaleDateString();
+    const t = document.createElementNS(SVG_NS, "text");
+    t.setAttribute("x", exMinX + exW - 8);
+    t.setAttribute("y", exMinY + exH - 8);
+    t.setAttribute("text-anchor", "end");
+    t.setAttribute("fill", "#94a3b8");
+    t.setAttribute("font-size", Math.max(10, Math.round(Math.min(exW, exH) * 0.018)));
+    t.setAttribute("font-family", "'Microsoft YaHei UI', sans-serif");
+    t.textContent = stamp;
+    exSvg.appendChild(t);
+
+    const xml = new XMLSerializer().serializeToString(exSvg);
+    const svg64 = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = outW; canvas.height = outH;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.drawImage(img, 0, 0, outW, outH);
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG 转换失败")), "image/png");
+    };
+    img.onerror = () => reject(new Error("矢量图渲染失败"));
+    img.src = svg64;
+  });
+}
+
+/* —— 把主截图和右侧客户参考图拼成一张大图 —— */
+function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = () => reject(new Error("图片加载失败"));
+    im.src = src;
+  });
+}
+
+function composeSnapshotWithReference(leftBlob) {
+  const preview = document.getElementById("reference-preview");
+  if (!preview || preview.hidden || !preview.src) return Promise.resolve(leftBlob);
+  const leftUrl = URL.createObjectURL(leftBlob);
+  return Promise.all([loadImageElement(leftUrl), loadImageElement(preview.src)])
+    .then(([leftImage, refImage]) => {
+      const outH = leftImage.naturalHeight || 1080;
+      const outW = leftImage.naturalWidth || 1440;
+      const refAspect = refImage.naturalHeight ? (refImage.naturalWidth / refImage.naturalHeight) : 1;
+      const panelMin = Math.max(Math.round(outH * 0.22), 220);
+      const panelMax = Math.max(panelMin, Math.round(outW * 0.58));
+      const panelNatural = Math.round(outH * refAspect);
+      const refPanelW = Math.max(panelMin, Math.min(panelNatural, panelMax));
+      const leftPanelW = Math.max(outW, refPanelW);
+      const panelW = leftPanelW;
+      const canvas = document.createElement("canvas");
+      canvas.width = leftPanelW + panelW;
+      canvas.height = outH;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const vectorX = Math.round((leftPanelW - outW) / 2);
+      ctx.drawImage(leftImage, vectorX, 0, outW, outH);
+      // 分隔线
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = Math.max(1, Math.round(outH * 0.0015));
+      ctx.beginPath();
+      ctx.moveTo(leftPanelW, 0);
+      ctx.lineTo(leftPanelW, outH);
+      ctx.stroke();
+      // 参考图
+      const pad = Math.max(Math.round(outH * 0.024), 20);
+      const availW = Math.max(panelW - pad * 2, 1);
+      const availH = Math.max(outH - pad * 2, 1);
+      const sc = Math.min(
+        availW / Math.max(refImage.naturalWidth || 1, 1),
+        availH / Math.max(refImage.naturalHeight || 1, 1)
+      );
+      const dW = Math.max(1, Math.round((refImage.naturalWidth || availW) * sc));
+      const dH = Math.max(1, Math.round((refImage.naturalHeight || availH) * sc));
+      const dX = leftPanelW + Math.round((panelW - dW) / 2);
+      const dY = Math.round((outH - dH) / 2);
+      ctx.drawImage(refImage, dX, dY, dW, dH);
+      return new Promise((res, rej) => {
+        canvas.toBlob((b) => b ? res(b) : rej(new Error("PNG 转换失败")), "image/png");
+      });
+    })
+    .finally(() => URL.revokeObjectURL(leftUrl));
+}
+
+function snapshot3DBlob() {
+  return new Promise((resolve, reject) => {
+    const canvas = document.getElementById("three-canvas");
+    if (!canvas || !three.renderer || !three.camera || !three.wallsGroup) return reject(new Error("3D 画布不存在"));
+    const renderer = three.renderer;
+    const camera = three.camera;
+    const scene = three.scene;
+    const controls = three.controls;
+
+    // 1) 模型世界包围盒
+    const box = new THREE.Box3().setFromObject(three.wallsGroup);
+    if (!isFinite(box.min.x) || box.isEmpty()) return reject(new Error("场景中暂无玻璃墙体"));
+
+    // 2) 备份相机/控件/渲染器状态
+    const oldPos = camera.position.clone();
+    const oldTgt = controls ? controls.target.clone() : new THREE.Vector3();
+    const oldAspect = camera.aspect;
+    const oldPR = renderer.getPixelRatio();
+    const oldSize = new THREE.Vector2(); renderer.getSize(oldSize);
+
+    // 3) 输出画面：保留当前观察方向，按 bbox 估算合适宽高比
+    const center = new THREE.Vector3(); box.getCenter(center);
+    const size = new THREE.Vector3(); box.getSize(size);
+    const dirVec = new THREE.Vector3().subVectors(oldPos, oldTgt).normalize();
+    const planar = Math.max(size.x, size.z);
+    const upH = Math.max(size.y, 1);
+    const TARGET_W = 1920;
+    const aspect = Math.max(0.6, Math.min(2.4, planar > 0 ? planar / upH : 1.6));
+    const W = TARGET_W;
+    const H = Math.round(TARGET_W / aspect);
+
+    // 4) 切换相机 aspect + 重新计算适配距离
+    camera.aspect = W / H;
+    camera.updateProjectionMatrix();
+    const halfFovV = THREE.MathUtils.degToRad(camera.fov) / 2;
+    const halfFovH = Math.atan(Math.tan(halfFovV) * camera.aspect);
+    const distV = (upH / 2) / Math.tan(halfFovV);
+    const distH = (planar / 2) / Math.tan(halfFovH);
+    const distance = Math.max(distV, distH) * 1.22;
+    camera.position.copy(center).add(dirVec.multiplyScalar(distance));
+    camera.lookAt(center);
+    if (controls) { controls.target.copy(center); controls.update(); }
+
+    // 5) 高清渲染（pixelRatio=2）
+    const PR = 2;
+    renderer.setPixelRatio(PR);
+    renderer.setSize(W, H, false);
+
+    let outErr = null;
+    try {
+      renderer.render(scene, camera);
+      const out = document.createElement("canvas");
+      out.width = W * PR; out.height = H * PR;
+      const ctx = out.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, out.width, out.height);
+      ctx.drawImage(canvas, 0, 0, out.width, out.height);
+      drawSnapshotLabels(ctx, camera, out.width, out.height, PR);
+      const sig = (document.getElementById("capture-signature") || {}).value || "";
+      ctx.font = `${14 * PR}px 'Microsoft YaHei UI', sans-serif`;
+      ctx.fillStyle = "#94a3b8";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "alphabetic";
+      const stamp = (sig ? `制图：${sig} · ` : "") + new Date().toLocaleDateString();
+      ctx.fillText(stamp, out.width - 12 * PR, out.height - 10 * PR);
+
+      out.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG 转换失败")), "image/png");
+    } catch (e) { outErr = e; }
+
+    // 6) 恢复
+    camera.aspect = oldAspect;
+    camera.position.copy(oldPos);
+    if (controls) { controls.target.copy(oldTgt); controls.update(); }
+    camera.updateProjectionMatrix();
+    renderer.setPixelRatio(oldPR);
+    renderer.setSize(oldSize.x, oldSize.y, false);
+    try { renderer.render(scene, camera); } catch {}
+
+    if (outErr) reject(outErr);
+  });
+}
+
+function drawSnapshotLabels(ctx, camera, W, H, PR) {
+  if (!three.segData || !three.segData.length) return;
+  // 字号自适应：取输出画布宽度的 ~2.6%，最低 36px
+  const fontPx = Math.max(36, Math.round(W * 0.026));
+  ctx.font = `800 ${fontPx}px 'Bahnschrift SemiCondensed','Microsoft YaHei UI',sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  for (const seg of three.segData) {
+    if (!(seg.mm > 0)) continue;
+    const ndc = seg.mid.clone().project(camera);
+    if (ndc.z > 1 || ndc.z < -1) continue;
+    const sx = (ndc.x * 0.5 + 0.5) * W;
+    const sy = (1 - (ndc.y * 0.5 + 0.5)) * H;
+    const text = `弓 ${Math.round(seg.mm)} mm`;
+    const ty = Math.max(fontPx + 8, sy - 12);
+    // 白描边 + 黑填充
+    ctx.lineWidth = Math.max(4, fontPx * 0.18);
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineJoin = "round";
+    ctx.strokeText(text, sx, ty);
+    ctx.fillStyle = "#0f172a";
+    ctx.fillText(text, sx, ty);
+  }
+}
+
+function findOpaqueBBox(img) {
+  const { data, width: W, height: H } = img;
+  let minX = W, minY = H, maxX = -1, maxY = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (data[(y * W + x) * 4 + 3] > 8) {
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return null;
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+}
+
+function updateThreeLabels() {
+  const host = document.getElementById("three-labels");
+  const canvas = document.getElementById("three-canvas");
+  if (!host || !canvas || !three.active) return;
+  if (!three.segData || !three.segData.length) { host.innerHTML = ""; return; }
+  const rect = canvas.getBoundingClientRect();
+  const stage = canvas.parentElement;
+  const stageRect = stage ? stage.getBoundingClientRect() : rect;
+  while (host.children.length < three.segData.length) {
+    const d = document.createElement("div");
+    d.className = "three-label";
+    host.appendChild(d);
+  }
+  while (host.children.length > three.segData.length) host.removeChild(host.lastChild);
+  for (let i = 0; i < three.segData.length; i++) {
+    const seg = three.segData[i];
+    const div = host.children[i];
+    if (!(seg.mm > 0)) { div.style.display = "none"; continue; }
+    const ndc = seg.mid.clone().project(three.camera);
+    if (ndc.z > 1 || ndc.z < -1) { div.style.display = "none"; continue; }
+    const sx = (ndc.x * 0.5 + 0.5) * rect.width + (rect.left - stageRect.left);
+    const sy = (1 - (ndc.y * 0.5 + 0.5)) * rect.height + (rect.top - stageRect.top);
+    div.style.display = "";
+    div.textContent = `弓 ${Math.round(seg.mm)} mm`;
+    div.style.left = sx + "px";
+    div.style.top = Math.max(20, sy - 6) + "px";
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+
+/* ============================================================
+   参考图：上传 / 拖拽 / 粘贴 / 预览查看器
+   ============================================================ */
+const REFERENCE_LS_KEY = "huahui:reference:v1";
+
+function setupReferenceImage() {
+  const dropzone = document.getElementById("reference-dropzone");
+  const preview  = document.getElementById("reference-preview");
+  const placeholder = document.getElementById("reference-placeholder");
+  const status = document.getElementById("reference-status");
+  const fileInput = document.getElementById("reference-file-input");
+  const pasteBtn = document.getElementById("reference-paste-btn");
+  const clearBtn = document.getElementById("reference-clear-btn");
+  if (!dropzone || !preview || !placeholder) return;
+
+  const setStatus = (msg, type) => {
+    if (!status) return;
+    status.textContent = msg || "";
+    status.classList.toggle("success", type === "success");
+    status.classList.toggle("error", type === "error");
+  };
+
+  const setImage = (dataUrl) => {
+    if (!dataUrl) {
+      preview.hidden = true;
+      preview.removeAttribute("src");
+      placeholder.style.display = "";
+      dropzone.classList.remove("has-image");
+      try { localStorage.removeItem(REFERENCE_LS_KEY); } catch {}
+      setStatus("");
+      return;
+    }
+    preview.src = dataUrl;
+    preview.hidden = false;
+    placeholder.style.display = "none";
+    dropzone.classList.add("has-image");
+    try { localStorage.setItem(REFERENCE_LS_KEY, dataUrl); } catch {}
+    setStatus("已加载参考图，点击可放大查看", "success");
+  };
+
+  // 恢复
+  try {
+    const saved = localStorage.getItem(REFERENCE_LS_KEY);
+    if (saved) setImage(saved);
+  } catch {}
+
+  const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
+    if (!file || !/image\//.test(file.type)) return reject(new Error("不是图片文件"));
+    if (file.size > 8 * 1024 * 1024) return reject(new Error("图片过大（>8MB）"));
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error("读取失败"));
+    r.readAsDataURL(file);
+  });
+
+  // 单击：仅聚焦（让 Ctrl+V / Del 可用）
+  // 双击：无图打开文件选择，有图打开放大查看器
+  dropzone.addEventListener("dblclick", () => {
+    if (dropzone.classList.contains("has-image")) {
+      openReferenceViewer();
+    } else if (fileInput) {
+      fileInput.click();
+    }
+  });
+  dropzone.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (dropzone.classList.contains("has-image")) openReferenceViewer();
+      else if (fileInput) fileInput.click();
+      return;
+    }
+    if ((e.key === "Delete" || e.key === "Backspace") && dropzone.classList.contains("has-image")) {
+      e.preventDefault();
+      setImage(null);
+    }
+  });
+  // 鼠标按下立即聚焦，确保后续 Ctrl+V 立刻可用
+  dropzone.addEventListener("mousedown", () => {
+    try { dropzone.focus({ preventScroll: true }); } catch { dropzone.focus(); }
+  });
+
+  if (fileInput) {
+    fileInput.addEventListener("change", () => {
+      const f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      readFileAsDataUrl(f).then(setImage).catch((err) => setStatus(err.message, "error"));
+      fileInput.value = "";
+    });
+  }
+
+  // 拖拽
+  ["dragenter", "dragover"].forEach((ev) => {
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.add("is-active");
+    });
+  });
+  ["dragleave", "drop"].forEach((ev) => {
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dropzone.classList.remove("is-active");
+    });
+  });
+  dropzone.addEventListener("drop", (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) readFileAsDataUrl(f).then(setImage).catch((err) => setStatus(err.message, "error"));
+  });
+
+  // 粘贴：聚焦在 dropzone 时全局粘贴生效
+  document.addEventListener("paste", (e) => {
+    if (document.activeElement !== dropzone && !dropzone.matches(":hover")) return;
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (const it of items) {
+      if (/image\//.test(it.type)) {
+        const f = it.getAsFile();
+        if (f) {
+          e.preventDefault();
+          readFileAsDataUrl(f).then(setImage).catch((err) => setStatus(err.message, "error"));
+          return;
+        }
+      }
+    }
+  });
+
+  if (pasteBtn) {
+    pasteBtn.addEventListener("click", async () => {
+      try {
+        if (!navigator.clipboard || !navigator.clipboard.read) {
+          setStatus("当前浏览器不支持读剪切板，请直接 Ctrl+V 粘贴或拖拽图片", "error");
+          return;
+        }
+        const list = await navigator.clipboard.read();
+        for (const item of list) {
+          for (const t of item.types) {
+            if (/image\//.test(t)) {
+              const blob = await item.getType(t);
+              const f = new File([blob], "pasted.png", { type: t });
+              readFileAsDataUrl(f).then(setImage).catch((err) => setStatus(err.message, "error"));
+              return;
+            }
+          }
+        }
+        setStatus("剪切板里没有图片", "error");
+      } catch (err) {
+        setStatus("剪切板读取失败：" + (err.message || ""), "error");
+      }
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => setImage(null));
+  }
+
+  // 查看器
+  const viewer = document.getElementById("reference-viewer");
+  const viewerImg = document.getElementById("reference-viewer-image");
+  const viewerClose = document.getElementById("reference-viewer-close");
+  const viewerVp = document.getElementById("reference-viewer-viewport");
+  const viewerStage = document.getElementById("reference-viewer-stage");
+  if (viewerClose) viewerClose.addEventListener("click", closeReferenceViewer);
+  if (viewer) viewer.addEventListener("click", (e) => {
+    if (e.target === viewer) closeReferenceViewer();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && viewer && !viewer.hidden) closeReferenceViewer();
+  });
+
+  // ====== 查看器 缩放 / 拖拽 ======
+  const refView = { scale: 1, min: 1, max: 8, dragging: false, startX: 0, startY: 0, startScrollLeft: 0, startScrollTop: 0 };
+
+  function getRefViewMetrics() {
+    if (!viewerVp || !viewerStage || !viewerImg) return null;
+    if (!viewerImg.naturalWidth || !viewerImg.naturalHeight) return null;
+    const vw = viewerVp.clientWidth || 0;
+    const vh = viewerVp.clientHeight || 0;
+    if (!vw || !vh) return null;
+    const fit = Math.min(vw / viewerImg.naturalWidth, vh / viewerImg.naturalHeight, 1);
+    const rw = viewerImg.naturalWidth * fit * refView.scale;
+    const rh = viewerImg.naturalHeight * fit * refView.scale;
+    const sw = Math.max(Math.round(rw), vw);
+    const sh = Math.max(Math.round(rh), vh);
+    const il = Math.round((sw - rw) / 2);
+    const it = Math.round((sh - rh) / 2);
+    return { vw, vh, fit, rw: Math.round(rw), rh: Math.round(rh), sw, sh, il, it };
+  }
+
+  function applyRefViewLayout(anchor) {
+    const m = getRefViewMetrics();
+    if (!m) return;
+    if (refView.scale < refView.min) refView.scale = refView.min;
+    if (refView.scale > refView.max) refView.scale = refView.max;
+    viewerStage.style.width  = m.sw + "px";
+    viewerStage.style.height = m.sh + "px";
+    viewerImg.style.position = "absolute";
+    viewerImg.style.width  = m.rw + "px";
+    viewerImg.style.height = m.rh + "px";
+    viewerImg.style.left   = m.il + "px";
+    viewerImg.style.top    = m.it + "px";
+    viewerImg.style.maxWidth = "none";
+    viewerImg.style.maxHeight = "none";
+    viewerVp.classList.toggle("is-dragging", !!refView.dragging);
+    if (!anchor) {
+      viewerVp.scrollLeft = Math.max(0, (m.sw - m.vw) / 2);
+      viewerVp.scrollTop  = Math.max(0, (m.sh - m.vh) / 2);
+      return;
+    }
+    viewerVp.scrollLeft = Math.max(0, Math.min(m.sw - m.vw, anchor.scrollLeft));
+    viewerVp.scrollTop  = Math.max(0, Math.min(m.sh - m.vh, anchor.scrollTop));
+  }
+
+  function resetRefViewTransform() {
+    refView.scale = 1;
+    refView.dragging = false;
+    applyRefViewLayout();
+  }
+
+  function zoomRefView(factor, clientX, clientY) {
+    const m0 = getRefViewMetrics();
+    if (!m0) return;
+    const rect = viewerVp.getBoundingClientRect();
+    const px = clientX - rect.left, py = clientY - rect.top;
+    const prev = refView.scale;
+    const next = Math.max(refView.min, Math.min(refView.max, prev * factor));
+    if (Math.abs(next - prev) < 1e-4) return;
+    const nx = (viewerVp.scrollLeft + px - m0.il) / (m0.fit * prev);
+    const ny = (viewerVp.scrollTop  + py - m0.it) / (m0.fit * prev);
+    refView.scale = next;
+    const m1 = getRefViewMetrics();
+    if (!m1) return;
+    applyRefViewLayout({
+      scrollLeft: nx * (m1.fit * next) + m1.il - px,
+      scrollTop:  ny * (m1.fit * next) + m1.it - py,
+    });
+  }
+
+  if (viewerVp) {
+    viewerVp.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      zoomRefView(e.deltaY < 0 ? 1.14 : 1 / 1.14, e.clientX, e.clientY);
+    }, { passive: false });
+    viewerVp.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      refView.dragging = true;
+      refView.startX = e.clientX; refView.startY = e.clientY;
+      refView.startScrollLeft = viewerVp.scrollLeft;
+      refView.startScrollTop = viewerVp.scrollTop;
+      viewerVp.classList.add("is-dragging");
+      try { viewerVp.setPointerCapture && viewerVp.setPointerCapture(e.pointerId); } catch {}
+      e.preventDefault();
+    });
+    viewerVp.addEventListener("pointermove", (e) => {
+      if (!refView.dragging) return;
+      viewerVp.scrollLeft = refView.startScrollLeft - (e.clientX - refView.startX);
+      viewerVp.scrollTop  = refView.startScrollTop  - (e.clientY - refView.startY);
+    });
+    const stopDrag = (e) => {
+      if (!refView.dragging) return;
+      refView.dragging = false;
+      viewerVp.classList.remove("is-dragging");
+      try { e && viewerVp.releasePointerCapture && viewerVp.releasePointerCapture(e.pointerId); } catch {}
+    };
+    viewerVp.addEventListener("pointerup", stopDrag);
+    viewerVp.addEventListener("pointercancel", stopDrag);
+    viewerVp.addEventListener("pointerleave", stopDrag);
+    // 双击 复位
+    viewerVp.addEventListener("dblclick", () => { resetRefViewTransform(); });
+  }
+  if (viewerImg) {
+    viewerImg.addEventListener("load", () => {
+      if (viewer && !viewer.hidden) resetRefViewTransform();
+    });
+  }
+  window.addEventListener("resize", () => {
+    if (viewer && !viewer.hidden) applyRefViewLayout();
+  });
+
+  function openReferenceViewer() {
+    if (!viewer || !viewerImg) return;
+    const src = preview.getAttribute("src");
+    if (!src) return;
+    viewerImg.src = src;
+    viewer.hidden = false;
+    requestAnimationFrame(resetRefViewTransform);
+    setTimeout(resetRefViewTransform, 120);
+  }
+  function closeReferenceViewer() {
+    if (!viewer) return;
+    viewer.hidden = true;
+    if (viewerImg) {
+      viewerImg.removeAttribute("src");
+      viewerImg.style.cssText = "";
+    }
+    if (viewerStage) {
+      viewerStage.style.width = "";
+      viewerStage.style.height = "";
+    }
+    refView.scale = 1;
+    refView.dragging = false;
+  }
+}
+
+function collectSvgCss() {
+  const out = [];
+  for (const sheet of document.styleSheets) {
+    try {
+      for (const rule of sheet.cssRules || []) {
+        const sel = rule.selectorText || "";
+        if (/svg|\.svg-|text|line|path|rect|circle/i.test(sel) || rule.type === 1 && sel.startsWith("."))
+          out.push(rule.cssText);
+      }
+    } catch {}
+  }
+  return out.join("\n");
+}
+
+async function exportSnapshot() {
+  setCapStatus("正在生成截图...", false);
+  const blob = await buildSnapshotBlob();
+  if (!(navigator.clipboard && window.ClipboardItem)) {
+    setCapStatus("当前浏览器不支持写剪贴板，请用 Edge / Chrome", true);
+    return;
+  }
+  await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+  setCapStatus("已复制到剪切板", false);
+}
+
+/* —— 编辑器：在 dialog 中打开截图，可点击添加文字标注 —— */
+async function openSnapshotEditor() {
+  setCapStatus("正在生成编辑图...", false);
+  const blob = await buildSnapshotBlob();
+  const url = URL.createObjectURL(blob);
+  const dlg = ensureSnapshotEditor();
+  const img = dlg.querySelector(".snap-img");
+  img.onload = () => {
+    const c = dlg.querySelector(".snap-canvas");
+    c.width = img.naturalWidth; c.height = img.naturalHeight;
+    redrawSnap(dlg);
+  };
+  img.src = url;
+  dlg._notes = [];
+  dlg._url = url;
+  dlg.hidden = false;
+  setCapStatus("已打开编辑器，单击图片添加文字。", false);
+}
+
+function ensureSnapshotEditor() {
+  let dlg = document.getElementById("snap-editor");
+  if (dlg) return dlg;
+  dlg = document.createElement("div");
+  dlg.id = "snap-editor";
+  dlg.className = "snapshot-editor";
+  dlg.hidden = true;
+  dlg.innerHTML = `
+    <div class="snapshot-editor__panel" style="display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;padding:12px;">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <strong style="font-size:0.9rem;">截图编辑 · 单击图片添加文字</strong>
+        <input type="text" class="snap-text" placeholder="待标注文字" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid #d6dee6;border-radius:8px;font-size:0.85rem;">
+        <label style="font-size:0.75rem;color:#64748b;">字号
+          <input type="number" class="snap-size" value="20" min="10" max="80" style="width:56px;margin-left:4px;padding:4px;border:1px solid #d6dee6;border-radius:6px;">
+        </label>
+        <label style="font-size:0.75rem;color:#64748b;">颜色
+          <input type="color" class="snap-color" value="#dc2626" style="width:34px;height:28px;border:none;background:transparent;vertical-align:middle;">
+        </label>
+        <button type="button" class="snap-undo capture-btn capture-btn--edit" style="padding:6px 12px;">撤销</button>
+        <button type="button" class="snap-clear capture-btn capture-btn--edit" style="padding:6px 12px;background:linear-gradient(135deg,#64748b,#475569);">清空</button>
+        <button type="button" class="snap-save capture-btn" style="padding:6px 12px;">保存 PNG</button>
+        <button type="button" class="snap-close capture-btn" style="padding:6px 12px;background:linear-gradient(135deg,#0f172a,#1e293b);">关闭</button>
+      </div>
+      <div class="snap-stage" style="position:relative;overflow:auto;background:#0f172a;border-radius:12px;display:flex;align-items:center;justify-content:center;">
+        <div style="position:relative;display:inline-block;">
+          <img class="snap-img" alt="" style="display:block;max-width:100%;height:auto;">
+          <canvas class="snap-canvas" style="position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;"></canvas>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+
+  const canvas = dlg.querySelector(".snap-canvas");
+  canvas.addEventListener("click", (e) => {
+    const text = dlg.querySelector(".snap-text").value.trim();
+    if (!text) { dlg.querySelector(".snap-text").focus(); return; }
+    const size = parseInt(dlg.querySelector(".snap-size").value, 10) || 20;
+    const color = dlg.querySelector(".snap-color").value || "#dc2626";
+    const r = canvas.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (canvas.width / r.width);
+    const y = (e.clientY - r.top)  * (canvas.height / r.height);
+    dlg._notes.push({ text, x, y, size, color });
+    redrawSnap(dlg);
+  });
+  dlg.querySelector(".snap-undo").addEventListener("click", () => { dlg._notes.pop(); redrawSnap(dlg); });
+  dlg.querySelector(".snap-clear").addEventListener("click", () => { dlg._notes = []; redrawSnap(dlg); });
+  dlg.querySelector(".snap-close").addEventListener("click", () => {
+    dlg.hidden = true;
+    if (dlg._url) { URL.revokeObjectURL(dlg._url); dlg._url = null; }
+  });
+  dlg.querySelector(".snap-save").addEventListener("click", () => saveSnap(dlg));
+  return dlg;
+}
+
+function redrawSnap(dlg) {
+  const canvas = dlg.querySelector(".snap-canvas");
+  const img = dlg.querySelector(".snap-img");
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // 仅画注释；底图由 <img> 显示
+  for (const n of dlg._notes) {
+    ctx.font = `700 ${n.size}px 'Microsoft YaHei UI', sans-serif`;
+    ctx.fillStyle = n.color;
+    ctx.strokeStyle = "rgba(255,255,255,0.95)";
+    ctx.lineWidth = Math.max(2, n.size / 8);
+    ctx.lineJoin = "round";
+    ctx.strokeText(n.text, n.x, n.y);
+    ctx.fillText(n.text, n.x, n.y);
+  }
+}
+
+function saveSnap(dlg) {
+  const img = dlg.querySelector(".snap-img");
+  const overlay = dlg.querySelector(".snap-canvas");
+  const out = document.createElement("canvas");
+  out.width = img.naturalWidth; out.height = img.naturalHeight;
+  const ctx = out.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  ctx.drawImage(overlay, 0, 0);
+  out.toBlob((blob) => {
+    if (!blob) { setCapStatus("保存失败", true); return; }
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = u;
+    a.download = `HUAHUI-edit-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"")}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(u), 1500);
+    setCapStatus("已保存编辑后的 PNG", false);
+  }, "image/png");
+}
+
+init();
+</script>
+
+<div id="reference-viewer" class="reference-viewer" hidden>
+  <div class="reference-viewer__panel">
+    <button type="button" id="reference-viewer-close" class="reference-viewer__close" aria-label="关闭预览">×</button>
+    <div id="reference-viewer-viewport" class="reference-viewer__viewport">
+      <div id="reference-viewer-stage" class="reference-viewer__stage">
+        <img id="reference-viewer-image" class="reference-viewer__image" alt="客户来图放大预览">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="snapshot-editor" class="snapshot-editor" hidden>
+  <div class="snapshot-editor__panel">
+    <div class="snapshot-editor__toolbar">
+      <div class="snapshot-editor__topbar">
+        <div class="snapshot-editor__heading">
+          <div class="snapshot-editor__title">截图编辑</div>
+          <div id="snapshot-editor-status" class="snapshot-editor__status">请选择工具后在图片上操作。</div>
+        </div>
+        <div class="snapshot-editor__actions">
+          <button type="button" class="snapshot-editor__action">撤销</button>
+          <button type="button" class="snapshot-editor__action">清空</button>
+          <button type="button" class="snapshot-editor__action snapshot-editor__action--primary">复制编辑图</button>
+          <button type="button" class="snapshot-editor__action">关闭</button>
+        </div>
+      </div>
+      <div class="snapshot-editor__controls">
+        <div class="snapshot-editor__group snapshot-editor__group--tools">
+          <div class="snapshot-editor__group-label">工具</div>
+          <div class="snapshot-editor__tools">
+            <button type="button" id="snapshot-tool-rect" class="snapshot-editor__tool is-active">框选</button>
+            <button type="button" id="snapshot-tool-arrow" class="snapshot-editor__tool">箭头</button>
+            <button type="button" id="snapshot-tool-text" class="snapshot-editor__tool">字段</button>
+          </div>
+        </div>
+        <div class="snapshot-editor__group snapshot-editor__group--palette">
+          <div class="snapshot-editor__group-label">颜色</div>
+          <div class="snapshot-editor__palette">
+            <button type="button" id="snapshot-color-0" class="snapshot-editor__color is-active" style="background:#d61f1f" aria-label="红色"></button>
+            <button type="button" id="snapshot-color-1" class="snapshot-editor__color" style="background:#dc2626" aria-label="红色"></button>
+            <button type="button" id="snapshot-color-2" class="snapshot-editor__color" style="background:#16a34a" aria-label="绿色"></button>
+            <button type="button" id="snapshot-color-3" class="snapshot-editor__color" style="background:#f59e0b" aria-label="橙色"></button>
+            <button type="button" id="snapshot-color-4" class="snapshot-editor__color" style="background:#111827" aria-label="黑色"></button>
+          </div>
+        </div>
+        <div class="snapshot-editor__group snapshot-editor__group--zoom">
+          <div class="snapshot-editor__group-label">视图</div>
+          <div class="snapshot-editor__zoom">
+            <button type="button" class="snapshot-editor__action">-</button>
+            <div id="snapshot-editor-zoom-value" class="snapshot-editor__zoom-value">100%</div>
+            <button type="button" class="snapshot-editor__action">+</button>
+            <button type="button" class="snapshot-editor__action">适应</button>
+          </div>
+        </div>
+        <div id="snapshot-arrow-group" class="snapshot-editor__group snapshot-editor__group--arrow" hidden>
+          <div class="snapshot-editor__group-label">箭头粗细</div>
+          <div class="snapshot-editor__range-row">
+            <input type="range" id="snapshot-arrow-width" class="snapshot-editor__range" min="8" max="72" step="1" value="18">
+            <div id="snapshot-arrow-width-value" class="snapshot-editor__range-value">18</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="snapshot-editor-viewport" class="snapshot-editor__viewport">
+      <div class="snapshot-editor__canvas-wrap">
+        <canvas id="snapshot-editor-canvas" class="snapshot-editor__canvas"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="./lib/extras.js" defer></script>
+</body>
+</html>

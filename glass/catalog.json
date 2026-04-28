@@ -1,0 +1,16 @@
+{
+  "entries": [
+    {
+      "model": "HY-050",
+      "roomType": "diamond",
+      "roomLabel": "钻石型",
+      "title": "HY-050 钻石型",
+      "pdf": "",
+      "panels": [
+        { "segment": "l", "label": "左固玻", "count": 1, "heightFormula": "总高-17", "widthFormula": "材料-10", "heightOffset": -17.0, "widthOffset": -10.0 },
+        { "segment": "c", "label": "活玻",   "count": 1, "heightFormula": "总高-55", "widthFormula": "材料-49", "heightOffset": -55.0, "widthOffset": -49.0 },
+        { "segment": "r", "label": "右固玻", "count": 1, "heightFormula": "总高-17", "widthFormula": "材料-10", "heightOffset": -17.0, "widthOffset": -10.0 }
+      ]
+    }
+  ]
+}
