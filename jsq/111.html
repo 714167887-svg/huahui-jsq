@@ -1507,6 +1507,20 @@ function ensureThreeInited() {
   three.envTex = envTex;
   three.inited = true;
 
+  // 右键菜单：长按 / 拖动视为相机操作，不弹出菜单
+  canvas.addEventListener("contextmenu", handleThreeContextMenu);
+  let _rmbDownAt = 0, _rmbDownX = 0, _rmbDownY = 0;
+  canvas.addEventListener("mousedown", (e) => {
+    if (e.button === 2) { _rmbDownAt = performance.now(); _rmbDownX = e.clientX; _rmbDownY = e.clientY; }
+  });
+  canvas.addEventListener("mouseup", (e) => {
+    if (e.button === 2) {
+      const dt = performance.now() - _rmbDownAt;
+      const dx = Math.abs(e.clientX - _rmbDownX), dy = Math.abs(e.clientY - _rmbDownY);
+      three._suppressCtx = (dt > 250) || (dx + dy > 4);
+    }
+  });
+
   resizeThree();
   if ("ResizeObserver" in window) {
     three.resizeObs = new ResizeObserver(() => resizeThree());
@@ -1557,12 +1571,232 @@ function extractGuidePoints(svg) {
 }
 
 // 把 SVG 中已渲染的 guide 折线投影成 3D 玻璃墙
+
+/* notch 工具：允许同一固玻同时有 top + bottom 两个缺口 */
+function _notchList(notches, label){
+  const v = notches && notches[label];
+  if (!v) return [];
+  const arr = Array.isArray(v) ? v : [v];
+  return arr.filter(n => n && n.w > 0 && n.h > 0);
+}
+function _notchOf(notches, label, side){
+  return _notchList(notches, label).find(n => n.side === side) || null;
+}
+function _setNotch(notches, label, side, val){
+  const cur = _notchList(notches, label).filter(n => n.side !== side);
+  if (val) cur.push({ ...val, side });
+  if (cur.length === 0) delete notches[label];
+  else notches[label] = cur;
+}
+
+/* ---- 固玻面板几何（支持上下两个外侧角缺口） ---------------- */
+function buildPanelGeometry(glassW, innerH, wallT, notches, outerSign) {
+  const list = (notches || []).filter(n => n && n.w > 0 && n.h > 0);
+  if (list.length === 0 || outerSign === 0) {
+    return new THREE.BoxGeometry(glassW, innerH, wallT);
+  }
+  const hw = glassW / 2, hh = innerH / 2;
+  const right = (outerSign > 0);
+  const order = ['BL','BR','TR','TL'];
+  const cornerPts = { BL:[-hw,-hh], BR:[hw,-hh], TR:[hw,hh], TL:[-hw,hh] };
+  const repl = (key, n) => {
+    const nw = Math.min(n.w, glassW - 1);
+    const nh = Math.min(n.h, innerH - 1);
+    switch (key) {
+      case 'TL': return [[-hw+nw,hh],[-hw+nw,hh-nh],[-hw,hh-nh]];
+      case 'TR': return [[hw,hh-nh],[hw-nw,hh-nh],[hw-nw,hh]];
+      case 'BR': return [[hw-nw,-hh],[hw-nw,-hh+nh],[hw,-hh+nh]];
+      case 'BL': return [[-hw,-hh+nh],[-hw+nw,-hh+nh],[-hw+nw,-hh]];
+    }
+  };
+  const topNotch = list.find(n => n.side === 'top');
+  const botNotch = list.find(n => n.side === 'bottom');
+  const topKey = topNotch ? (right ? 'TR' : 'TL') : null;
+  const botKey = botNotch ? (right ? 'BR' : 'BL') : null;
+  const poly = [];
+  for (const k of order) {
+    if (k === topKey) poly.push(...repl(k, topNotch));
+    else if (k === botKey) poly.push(...repl(k, botNotch));
+    else poly.push(cornerPts[k]);
+  }
+  const shape = new THREE.Shape();
+  shape.moveTo(poly[0][0], poly[0][1]);
+  for (let i = 1; i < poly.length; i++) shape.lineTo(poly[i][0], poly[i][1]);
+  shape.lineTo(poly[0][0], poly[0][1]);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: wallT, bevelEnabled: false, curveSegments: 1, steps: 1 });
+  geo.translate(0, 0, -wallT / 2);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/* 真实多边形轮廓线段（避免 ExtrudeGeometry 三角化产生对角线） */
+function buildPanelOutline(glassW, innerH, wallT, notches, outerSign) {
+  const hw = glassW / 2, hh = innerH / 2;
+  const list = (notches || []).filter(n => n && n.w > 0 && n.h > 0);
+  let pts;
+  if (list.length === 0 || outerSign === 0) {
+    pts = [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]];
+  } else {
+    const right = (outerSign > 0);
+    const order = ['BL','BR','TR','TL'];
+    const cornerPts = { BL:[-hw,-hh], BR:[hw,-hh], TR:[hw,hh], TL:[-hw,hh] };
+    const repl = (key, n) => {
+      const nw = Math.min(n.w, glassW - 1), nh = Math.min(n.h, innerH - 1);
+      switch (key) {
+        case 'TL': return [[-hw+nw,hh],[-hw+nw,hh-nh],[-hw,hh-nh]];
+        case 'TR': return [[hw,hh-nh],[hw-nw,hh-nh],[hw-nw,hh]];
+        case 'BR': return [[hw-nw,-hh],[hw-nw,-hh+nh],[hw,-hh+nh]];
+        case 'BL': return [[-hw,-hh+nh],[-hw+nw,-hh+nh],[-hw+nw,-hh]];
+      }
+    };
+    const topN = list.find(n=>n.side==='top'), botN = list.find(n=>n.side==='bottom');
+    const tk = topN ? (right ? 'TR' : 'TL') : null;
+    const bk = botN ? (right ? 'BR' : 'BL') : null;
+    pts = [];
+    for (const k of order) {
+      if (k === tk) pts.push(...repl(k, topN));
+      else if (k === bk) pts.push(...repl(k, botN));
+      else pts.push(cornerPts[k]);
+    }
+  }
+  const positions = [];
+  const z1 = -wallT / 2, z2 = wallT / 2;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    positions.push(a[0], a[1], z1,  b[0], b[1], z1);
+    positions.push(a[0], a[1], z2,  b[0], b[1], z2);
+    positions.push(a[0], a[1], z1,  a[0], a[1], z2);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  return new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+    color: 0x0f172a, transparent: true, opacity: 0.85,
+  }));
+}
+
+/* ---- 3D 右键菜单：固玻添加/修改/删除缺口 ---------------------- */
+function showThreeNotchDialog({ title, w, h }) {
+  return new Promise(resolve => {
+    const dlg  = document.getElementById('three-notch-dlg');
+    const mask = document.getElementById('three-notch-mask');
+    const tt   = document.getElementById('three-notch-title');
+    const iw   = document.getElementById('three-notch-w');
+    const ih   = document.getElementById('three-notch-h');
+    const ok   = document.getElementById('three-notch-ok');
+    const ca   = document.getElementById('three-notch-cancel');
+    tt.textContent = title || '缺口尺寸';
+    iw.value = (w != null ? w : '');
+    ih.value = (h != null ? h : '');
+    dlg.hidden = false; mask.hidden = false;
+    setTimeout(() => iw.focus(), 30);
+    function close(val){
+      dlg.hidden = true; mask.hidden = true;
+      ok.removeEventListener('click', onOk);
+      ca.removeEventListener('click', onCancel);
+      mask.removeEventListener('click', onCancel);
+      iw.removeEventListener('keydown', onKey);
+      ih.removeEventListener('keydown', onKey);
+      resolve(val);
+    }
+    function onOk(){
+      const wv = parseFloat(iw.value), hv = parseFloat(ih.value);
+      if (!(wv > 0) || !(hv > 0)) { alert('请输入有效的宽和高（mm）'); return; }
+      close({ w: wv, h: hv });
+    }
+    function onCancel(){ close(null); }
+    function onKey(e){
+      if (e.key === 'Enter') onOk();
+      else if (e.key === 'Escape') onCancel();
+    }
+    ok.addEventListener('click', onOk);
+    ca.addEventListener('click', onCancel);
+    mask.addEventListener('click', onCancel);
+    iw.addEventListener('keydown', onKey);
+    ih.addEventListener('keydown', onKey);
+  });
+}
+
+function showThreeCtxMenu(clientX, clientY, hasNotch, onPick){
+  const menu = document.getElementById('three-ctx-menu');
+  menu.querySelector('[data-act="add"]').hidden = !!hasNotch;
+  menu.querySelector('[data-act="edit"]').hidden = !hasNotch;
+  menu.querySelector('[data-act="del"]').hidden  = !hasNotch;
+  menu.style.left = clientX + 'px';
+  menu.style.top  = clientY + 'px';
+  menu.hidden = false;
+  function onClick(e){
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    hide();
+    onPick(b.dataset.act);
+  }
+  function onDocDown(e){
+    if (!menu.contains(e.target)) hide();
+  }
+  function hide(){
+    menu.hidden = true;
+    menu.removeEventListener('click', onClick);
+    document.removeEventListener('mousedown', onDocDown, true);
+  }
+  menu.addEventListener('click', onClick);
+  setTimeout(()=>document.addEventListener('mousedown', onDocDown, true), 0);
+}
+
+function handleThreeContextMenu(event) {
+  if (!three.inited || !three.active) return;
+  if (three._suppressCtx) {
+    three._suppressCtx = false;
+    event.preventDefault();
+    return;
+  }
+  const canvas = event.currentTarget;
+  const rect = canvas.getBoundingClientRect();
+  const nx = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+  const ny = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera({ x: nx, y: ny }, three.camera);
+  const hits = ray.intersectObjects(three.wallsGroup.children, true);
+  let hit = null;
+  for (const h of hits) {
+    if (h.object && h.object.userData && h.object.userData.isFixedPanel) { hit = h; break; }
+  }
+  if (!hit) return;
+  event.preventDefault();
+  const ud = hit.object.userData;
+  const side = (hit.point.y > ud.glassCY) ? 'top' : 'bottom';
+  three.notches = three.notches || {};
+  const cur = _notchOf(three.notches, ud.segLabel, side);
+  const segZh = ud.segLabel === 'L' ? '左固玻' : (ud.segLabel === 'R' ? '右固玻' : ud.segLabel);
+  const sideZh = side === 'top' ? '上半' : '下半';
+
+  showThreeCtxMenu(event.clientX, event.clientY, !!cur, async (act) => {
+    if (act === 'del') {
+      _setNotch(three.notches, ud.segLabel, side, null);
+      three.signature = '';
+      syncThreeFromSvg($("#main-svg"), { force: true });
+      updateThreeLabels();
+      return;
+    }
+    const isEdit = act === 'edit';
+    const ret = await showThreeNotchDialog({
+      title: (isEdit ? '修改' : '添加') + segZh + sideZh + '缺口',
+      w: cur ? cur.w : 100,
+      h: cur ? cur.h : 200,
+    });
+    if (!ret) return;
+    _setNotch(three.notches, ud.segLabel, side, { w: ret.w, h: ret.h });
+    three.signature = '';
+    syncThreeFromSvg($("#main-svg"), { force: true });
+    updateThreeLabels();
+  });
+}
+
 function syncThreeFromSvg(svg, opts = {}) {
   if (!three.inited || (!three.active && !opts.force)) return;
   const pts2d = extractGuidePoints(svg);
   const totalH = Math.max(600, toNumber($("#total-height-input")?.value, 2000));
   const dirSig = (window.__lastPayload && window.__lastPayload.currentDirection) || "left";
-  const sig = JSON.stringify({ pts2d, totalH, dirSig });
+  const sig = JSON.stringify({ pts2d, totalH, dirSig, notches: three.notches || {} });
   if (sig === three.signature && !opts.force) return;
   three.signature = sig;
 
@@ -1606,14 +1840,26 @@ function syncThreeFromSvg(svg, opts = {}) {
 
   // 缓存段数据用于 3D label 叠加 + 截图
   const segLabels = ["L", "C", "R"];
+  three.notches = three.notches || {};
+  const notches = three.notches;
   three.segData = [];
   for (let i = 0; i + 1 < pts3d.length; i++) {
     const a = pts3d[i], b = pts3d[i + 1];
-    const mid = new THREE.Vector3((a.x + b.x) / 2, wallH, (a.z + b.z) / 2);
-    const mm = (window.__lastResult && window.__lastResult.geoLengths)
-      ? [window.__lastResult.geoLengths.l || 0, window.__lastResult.geoLengths.c || 0, window.__lastResult.geoLengths.r || 0][i]
-      : 0;
-    three.segData.push({ mid, mm, label: segLabels[i] || `S${i+1}` });
+    const midTop = new THREE.Vector3((a.x + b.x) / 2, wallH, (a.z + b.z) / 2);
+    const midBot = new THREE.Vector3((a.x + b.x) / 2, 12, (a.z + b.z) / 2);
+    const baseMM = (segMM[i] || 0);
+    const label  = segLabels[i] || `S${i+1}`;
+    const nlist  = _notchList(notches, label);
+    const topN   = nlist.find(n => n.side === 'top');
+    const botN   = nlist.find(n => n.side === 'bottom');
+    if (topN || botN) {
+      const topMM = topN ? Math.max(0, baseMM - topN.w) : baseMM;
+      const botMM = botN ? Math.max(0, baseMM - botN.w) : baseMM;
+      three.segData.push({ mid: midTop, mm: topMM, label });
+      three.segData.push({ mid: midBot, mm: botMM, label });
+    } else {
+      three.segData.push({ mid: midTop, mm: baseMM, label });
+    }
   }
 
   const glassMat = new THREE.MeshPhysicalMaterial({
@@ -1676,20 +1922,32 @@ function syncThreeFromSvg(svg, opts = {}) {
     seg.rotation.y = -angle;
     three.wallsGroup.add(seg);
 
+    // 计算缺口对该段轨道的影响（仅左/右端段、固玻段才会有缺口）
+    const segLabelHere0 = segLabels[i] || '';
+    const _outerSign0 = (i === 0) ? -1 : (i === pts3d.length - 2 ? +1 : 0);
+    const _topN0 = (_outerSign0 !== 0) ? _notchOf(notches, segLabelHere0, 'top') : null;
+    const _botN0 = (_outerSign0 !== 0) ? _notchOf(notches, segLabelHere0, 'bottom') : null;
+    const topCutW = _topN0 ? Math.min(_topN0.w, len - 2) : 0;
+    const botCutW = _botN0 ? Math.min(_botN0.w, len - 2) : 0;
+    const topLen = len - topCutW;
+    const topCX  = (_outerSign0 > 0 ? -topCutW / 2 : (_outerSign0 < 0 ? topCutW / 2 : 0));
+    const botLen = len - botCutW;
+    const botCX  = (_outerSign0 > 0 ? -botCutW / 2 : (_outerSign0 < 0 ? botCutW / 2 : 0));
+
     // —— 上下横档（弓） ——
     const top = new THREE.Mesh(
-      new THREE.BoxGeometry(len, TOP_BAR_FACE, FRAME_D),
+      new THREE.BoxGeometry(topLen, TOP_BAR_FACE, FRAME_D),
       frameMat
     );
-    top.position.set(0, wallH - TOP_BAR_FACE / 2, 0);
+    top.position.set(topCX, wallH - TOP_BAR_FACE / 2, 0);
     top.castShadow = true; top.receiveShadow = true;
     seg.add(top);
 
     const bot = new THREE.Mesh(
-      new THREE.BoxGeometry(len, BOT_BAR_FACE, FRAME_D),
+      new THREE.BoxGeometry(botLen, BOT_BAR_FACE, FRAME_D),
       frameMat
     );
-    bot.position.set(0, BOT_BAR_FACE / 2, 0);
+    bot.position.set(botCX, BOT_BAR_FACE / 2, 0);
     bot.castShadow = true; bot.receiveShadow = true;
     seg.add(bot);
 
@@ -1782,30 +2040,115 @@ function syncThreeFromSvg(svg, opts = {}) {
         seg.add(cap);
       });
     } else {
-      // 固定扇：玻璃完整充满外框内孔
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(glassW, innerH, wallT), glassMat);
+      // 固定扇：玻璃完整充满外框内孔（支持外侧上下角缺口）
+      const segLabelHere = segLabels[i] || '';
+      const outerSign = leftIsEnd ? -1 : (rightIsEnd ? +1 : 0);
+      const usableNotches = (outerSign !== 0) ? _notchList(notches, segLabelHere) : [];
+      const panelGeo = buildPanelGeometry(glassW, innerH, wallT, usableNotches, outerSign);
+      const panel = new THREE.Mesh(panelGeo, glassMat);
       panel.position.set(glassCX, glassCY, 0);
       panel.castShadow = true; panel.receiveShadow = true;
+      panel.userData = {
+        isFixedPanel: true,
+        segLabel: segLabelHere,
+        glassW, innerH, glassCX, glassCY, outerSign,
+      };
       seg.add(panel);
-      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(panel.geometry, 25), edgeMat);
-      edges.position.copy(panel.position);
-      seg.add(edges);
+      // 边线：用真实多边形轮廓
+      const outline = buildPanelOutline(glassW, innerH, wallT, usableNotches, outerSign);
+      outline.position.copy(panel.position);
+      seg.add(outline);
     }
   }
 
-  // 各折点处的金属立柱：端柱直径 = 2*15，中柱直径 = 2*12（每段单边看面 12）
+  // 各折点处的金属立柱：端柱方形截面 + 缺口折弯；中柱圆柱（与上下轨同高）
   for (let i = 0; i < pts3d.length; i++) {
     const p = pts3d[i];
     const isEnd = (i === 0 || i === pts3d.length - 1);
-    const r = isEnd ? SIDE_END_FACE : MID_POST_HALF;
-    const post = new THREE.Mesh(
-      new THREE.CylinderGeometry(r, r, wallH + 2, 20),
-      frameMat
-    );
-    post.position.set(p.x, (wallH + 2) / 2, p.z);
-    post.castShadow = true;
-    post.receiveShadow = true;
-    three.wallsGroup.add(post);
+    if (isEnd) {
+      const side = SIDE_END_FACE * 2;
+      const neighbor = (i === 0) ? pts3d[1] : pts3d[pts3d.length - 2];
+      const ang = Math.atan2(neighbor.z - p.z, neighbor.x - p.x);
+
+      // 检查相邻段是否有缺口（端立柱跟着缺口同侧也截短）
+      const segIdx = (i === 0) ? 0 : (pts3d.length - 2);
+      const segLab = segLabels[segIdx] || '';
+      const _topN = _notchOf(notches, segLab, 'top');
+      const _botN = _notchOf(notches, segLab, 'bottom');
+      const topCut = _topN ? Math.min(_topN.h, wallH - 1) : 0;
+      const botCut = _botN ? Math.min(_botN.h, wallH - 1) : 0;
+      const totalH2 = wallH + 2;
+
+      // 立柱主干
+      const trunkH = totalH2 - topCut - botCut;
+      if (trunkH > 0.5) {
+        const trunk = new THREE.Mesh(
+          new THREE.BoxGeometry(side, trunkH, FRAME_D),
+          frameMat
+        );
+        trunk.rotation.y = -ang;
+        trunk.position.set(p.x, botCut + trunkH / 2, p.z);
+        trunk.castShadow = true; trunk.receiveShadow = true;
+        three.wallsGroup.add(trunk);
+      }
+
+      // 沿墙向内方向单位向量
+      const inwardX = Math.cos(ang), inwardZ = Math.sin(ang);
+
+      // 缺口"折弯" ⌈/⌊：垂直短段 + 水平挡板
+      const drawElbow = (n, isTop) => {
+        if (!n) return;
+        const cutH = isTop ? topCut : botCut;
+        if (cutH <= 0) return;
+        const cx1 = p.x + n.w * inwardX;
+        const cz1 = p.z + n.w * inwardZ;
+        const closer = new THREE.Mesh(
+          new THREE.BoxGeometry(side, cutH, FRAME_D),
+          frameMat
+        );
+        closer.rotation.y = -ang;
+        const cy1 = isTop ? (wallH - cutH / 2) : (cutH / 2);
+        closer.position.set(cx1, cy1, cz1);
+        closer.castShadow = true; closer.receiveShadow = true;
+        three.wallsGroup.add(closer);
+        const capLen = n.w + side / 2;
+        const cx2 = p.x + (capLen / 2) * inwardX;
+        const cz2 = p.z + (capLen / 2) * inwardZ;
+        const cap = new THREE.Mesh(
+          new THREE.BoxGeometry(capLen, side, FRAME_D),
+          frameMat
+        );
+        cap.rotation.y = -ang;
+        const cy2 = isTop ? (wallH - cutH - side / 2) : (cutH + side / 2);
+        cap.position.set(cx2, cy2, cz2);
+        cap.castShadow = true; cap.receiveShadow = true;
+        three.wallsGroup.add(cap);
+      };
+      drawElbow(_topN, true);
+      drawElbow(_botN, false);
+    } else {
+      // 中柱：圆柱（与上下轨同宽，与轨道直接重叠）
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(FRAME_D / 2, FRAME_D / 2, wallH, 64, 1),
+        frameMat
+      );
+      post.position.set(p.x, wallH / 2, p.z);
+      post.castShadow = true;
+      post.receiveShadow = true;
+      three.wallsGroup.add(post);
+
+      // 顶/底端盖
+      const capGeo = new THREE.CylinderGeometry(FRAME_D / 2 + 0.6, FRAME_D / 2, 3, 64);
+      const capTop = new THREE.Mesh(capGeo, frameMat);
+      capTop.position.set(p.x, wallH - 1.5, p.z);
+      capTop.castShadow = true; capTop.receiveShadow = true;
+      three.wallsGroup.add(capTop);
+      const capBot = new THREE.Mesh(capGeo.clone(), frameMat);
+      capBot.rotation.x = Math.PI;
+      capBot.position.set(p.x, 1.5, p.z);
+      capBot.castShadow = true; capBot.receiveShadow = true;
+      three.wallsGroup.add(capBot);
+    }
   }
 
   // 控制器目标对准结构中心
@@ -2510,7 +2853,7 @@ function drawSnapshotLabels(ctx, camera, W, H, PR) {
     if (ndc.z > 1 || ndc.z < -1) continue;
     const sx = (ndc.x * 0.5 + 0.5) * W;
     const sy = (1 - (ndc.y * 0.5 + 0.5)) * H;
-    const text = `弓 ${Math.round(seg.mm)} mm`;
+    const text = `材料 ${Math.round(seg.mm)} mm`;
     const ty = Math.max(fontPx + 8, sy - 12);
     // 白描边 + 黑填充
     ctx.lineWidth = Math.max(4, fontPx * 0.18);
@@ -2562,7 +2905,7 @@ function updateThreeLabels() {
     const sx = (ndc.x * 0.5 + 0.5) * rect.width + (rect.left - stageRect.left);
     const sy = (1 - (ndc.y * 0.5 + 0.5)) * rect.height + (rect.top - stageRect.top);
     div.style.display = "";
-    div.textContent = `弓 ${Math.round(seg.mm)} mm`;
+    div.textContent = `材料 ${Math.round(seg.mm)} mm`;
     div.style.left = sx + "px";
     div.style.top = Math.max(20, sy - 6) + "px";
   }
@@ -3087,6 +3430,31 @@ init();
       </div>
     </div>
   </div>
+</div>
+
+<!-- 3D 缺口右键菜单 -->
+<div id="three-ctx-menu" hidden style="position:fixed;z-index:9997;background:#fff;border:1px solid #cbd5e1;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.14);padding:4px 0;min-width:120px;font-size:13px;">
+    <button type="button" data-act="add"  style="display:block;width:100%;text-align:left;padding:6px 14px;border:0;background:transparent;cursor:pointer;">添加缺口</button>
+    <button type="button" data-act="edit" hidden style="display:block;width:100%;text-align:left;padding:6px 14px;border:0;background:transparent;cursor:pointer;">修改缺口</button>
+    <button type="button" data-act="del"  hidden style="display:block;width:100%;text-align:left;padding:6px 14px;border:0;background:transparent;cursor:pointer;color:#b91c1c;">删除缺口</button>
+</div>
+
+<!-- 3D 缺口输入弹窗 -->
+<div id="three-notch-mask" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9998;"></div>
+<div id="three-notch-dlg" hidden style="position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9999;background:#fff;border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.18);min-width:300px;padding:18px 20px;font-family:inherit;">
+    <div id="three-notch-title" style="font-weight:600;font-size:15px;margin-bottom:12px;color:#15803d;">添加缺口</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;">
+        <label style="width:48px;font-size:13px;color:#444;">宽 (mm)</label>
+        <input id="three-notch-w" type="number" min="1" step="1" style="flex:1;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;">
+        <label style="width:48px;font-size:13px;color:#444;">高 (mm)</label>
+        <input id="three-notch-h" type="number" min="1" step="1" style="flex:1;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" id="three-notch-cancel" style="padding:6px 14px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer;">取消</button>
+        <button type="button" id="three-notch-ok" style="padding:6px 14px;border:0;border-radius:6px;background:#15803d;color:#fff;cursor:pointer;">确定</button>
+    </div>
 </div>
 
 <script src="./lib/extras.js" defer></script>
