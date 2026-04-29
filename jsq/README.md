@@ -1,4 +1,4 @@
-# HUAHUI 淋浴房计算器（打样版本）
+﻿# HUAHUI 淋浴房计算器（打样版本）
 
 > 沐新 jsq 几何算法的衍生项目，专门给 HUAHUI 客户打样使用。
 
@@ -6,9 +6,9 @@
 
 | 项目 | 状态 |
 |---|---|
-| 款式 | 仅 **HY-050**（开门 · 转轴） |
+| 款式 | 仅 **HY-055**（开门 · 转轴） |
 | 房型 | 仅 **钻石型** |
-| 偏移 | `stone_base = -13`, `sink_top = 32`, `stone_center = 14` |
+| 偏移 | `stone_base = -14`, `sink_top = 32`, `stone_center = 14` |
 | 模块 | 计算器 + 玻璃尺寸预览 |
 | 不含 | 品牌 logo、下单(bom)、其它款型 |
 
@@ -17,10 +17,10 @@
 ```
 HUAHUI/
 ├── index.html              # 入口（无品牌 logo）
-├── 111.html                # 计算器主页面（钻石型 / HY-050）
+├── 111.html                # 计算器主页面（钻石型 / HY-055）
 ├── functions/
 │   ├── _lib/
-│   │   ├── protected-calc.js   # 几何算法（HY-050 单款）
+│   │   ├── protected-calc.js   # 几何算法（HY-055 单款）
 │   │   └── model-catalog.js    # 款式目录
 │   └── api/
 │       ├── calc.js             # POST /api/calc 备用云端入口
@@ -46,11 +46,11 @@ cd C:\Users\Administrator\Desktop\HUAHUI
 npx wrangler pages dev . --port 8765
 ```
 
-## 算法关键值（HY-050）
+## 算法关键值（HY-055）
 
 ```js
-"HY-050": {
-  stone_base: -13,    // 石材基座内缩 mm
+"HY-055": {
+  stone_base: -14,    // 石材基座内缩 mm
   sink_top:   32,     // 水槽顶外凸 mm
   stone_center: 14,   // 石材中线偏移 mm
   doorType:  "hinged",

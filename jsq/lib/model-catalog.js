@@ -1,10 +1,10 @@
-// HUAHUI 款式目录（打样阶段仅一款）
+﻿// HUAHUI 款式目录（打样阶段仅一款）
 // 与 jsq 版本结构对齐，方便未来扩款
 
 export const MODEL_CATALOG = {
-  "HY-050": {
-    key: "HY-050",
-    name: "HY-050",
+  "HY-055": {
+    key: "HY-055",
+    name: "HY-055",
     featureLabel: "开门 · 转轴",
     featureType: "hinged",
     pivotType: "pivot",

@@ -1,8 +1,8 @@
-// HUAHUI 淋浴房计算器 - 几何与款式偏移核心
+﻿// HUAHUI 淋浴房计算器 - 几何与款式偏移核心
 // 算法来源：W/jsq/functions/_lib/protected-calc.js（沐新卫浴）
 // 改动：
-//   - 仅保留 HY-050 一个款式（开门、转轴）
-//   - 偏移量按 HY-050 实测：stone_base = -13, sink_top = 32, stone_center = 14
+//   - 仅保留 HY-055 一个款式（开门、转轴）
+//   - 偏移量按 HY-055 实测：stone_base = -14, sink_top = 32, stone_center = 14
 
 // 各款型的截面偏移量（单位 mm）
 // stone_base:   石材基座相对于立柱中心的内缩（负值 = 向墙内缩）
@@ -11,8 +11,8 @@
 // doorType:     门类型标识（hinged 开门 / sliding 移门）
 // pivotType:    门轴类型（仅开门有效；pivot = 转轴）
 export const MODEL_OFFSETS = {
-  "HY-050": {
-    stone_base: -13,
+  "HY-055": {
+    stone_base: -14,
     sink_top: 32,
     stone_center: 14,
     doorType: "hinged",
@@ -296,7 +296,7 @@ export function resolveModelOffset(payload = {}) {
     return buildOffsetResult(rawModel, MODEL_OFFSETS[rawModel]);
   }
 
-  // 兼容前缀匹配（例如 "HY-050D" 之类的扩展款）
+  // 兼容前缀匹配（例如 "HY-055D" 之类的扩展款）
   for (const key of Object.keys(MODEL_OFFSETS)) {
     if (rawModel.startsWith(key)) {
       return buildOffsetResult(key, MODEL_OFFSETS[key]);

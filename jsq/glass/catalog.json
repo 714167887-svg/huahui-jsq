@@ -1,10 +1,10 @@
-{
+﻿{
   "entries": [
     {
-      "model": "HY-050",
+      "model": "HY-055",
       "roomType": "diamond",
       "roomLabel": "钻石型",
-      "title": "HY-050 钻石型",
+      "title": "HY-055 钻石型",
       "pdf": "",
       "panels": [
         { "segment": "l", "label": "左固玻", "count": 1, "heightFormula": "总高-17", "widthFormula": "材料-10", "heightOffset": -17.0, "widthOffset": -10.0 },
