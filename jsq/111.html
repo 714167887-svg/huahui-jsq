@@ -1460,7 +1460,36 @@ function _bulgeToArc(x1, y1, x2, y2, b, Y) {
   return 'A ' + r + ' ' + r + ' 0 ' + largeArc + ' ' + sweep + ' ' + x2 + ' ' + Y(y2);
 }
 
-function _buildGlassDxfSvg(ents, axis) {
+function _buildGlassDxfSvg(ents, axis, panelData) {
+  // panelData 用于把 DXF 中固化的「总高-N」MTEXT 替换为运行时计算的实际高度
+  const heightByOffset = {};
+  if (Array.isArray(panelData)) {
+    panelData.forEach(p => {
+      const m = String(p.heightFormula || '').match(/总高\s*-\s*(\d+(?:\.\d+)?)/);
+      if (m) heightByOffset[m[1]] = p.glassH;
+    });
+  }
+  const _replaceHeightFormula = (txt) => {
+    if (!txt) return txt;
+    return txt.replace(/总高\s*-\s*(\d+(?:\.\d+)?)/g, (full, n) => {
+      const v = heightByOffset[n];
+      return Number.isFinite(v) ? String(v) : full;
+    });
+  };
+  // 预过滤：丢掉 DXF 原生 DIMENSION 和「与高度无关的数字 MTEXT 噪音」（1000/145/100/60/8/10/14/2-R2/2-Φ10 等）
+  // 仅保留：含「总高-N」公式的 MTEXT（替换为实际高度）+ 含中文非公式的 MTEXT（左转轴/右转轴）
+  const _hasChinese = (s) => /[\u4e00-\u9fff]/.test(s || '');
+  ents = ents.filter(e => {
+    if (e.type === 'DIMENSION') return false;
+    if (e.type === 'MTEXT') {
+      const cleaned = _cleanMtextString(e['1']);
+      if (!cleaned) return false;
+      if (/总高\s*-\s*\d/.test(cleaned)) return true;     // 高度公式（待替换）
+      if (_hasChinese(cleaned)) return true;              // 转轴文字
+      return false;                                        // 纯数字噪音
+    }
+    return true;
+  });
   // 计算全图水平 bbox 用于按 axis 裁剪
   const allXs = [];
   ents.forEach(e => {
@@ -1544,6 +1573,28 @@ function _buildGlassDxfSvg(ents, axis) {
   const dimFont = unit / 45;
   const Y = (y) => -(+y);
 
+  // 收集闭合矩形（用于给「总高-N」高度标签自绘引线箭头指向最近矩形）
+  const heightRects = filtered.filter(e =>
+    e.type === 'LWPOLYLINE' && e['70'] === '1' && e._verts && e._verts.length === 4
+  ).map(e => {
+    const xs = e._verts.map(v => v[0]);
+    const ys = e._verts.map(v => v[1]);
+    return {
+      minX: Math.min.apply(null, xs), maxX: Math.max.apply(null, xs),
+      minY: Math.min.apply(null, ys), maxY: Math.max.apply(null, ys)
+    };
+  });
+  const _findNearestRect = (tx, ty) => {
+    let best = null, bestD = Infinity;
+    heightRects.forEach(r => {
+      const cx = (r.minX + r.maxX) / 2, cy = (r.minY + r.maxY) / 2;
+      const d = Math.hypot(tx - cx, ty - cy);
+      if (d < bestD) { bestD = d; best = r; }
+    });
+    return best;
+  };
+  const arrowSize = unit / 80;
+
   let body = '';
   filtered.forEach(e => {
     if (e.type === 'LINE') {
@@ -1554,10 +1605,37 @@ function _buildGlassDxfSvg(ents, axis) {
       body += '<circle cx="' + (+e['10']) + '" cy="' + Y(e['20']) +
               '" r="' + (+e['40']) + '" fill="none" stroke="#dc2626" stroke-width="' + stroke + '"/>';
     } else if (e.type === 'MTEXT') {
-      const txt = _cleanMtextString(e['1']);
+      const rawCleaned = _cleanMtextString(e['1']);
+      const txt = _replaceHeightFormula(rawCleaned);
       if (!txt) return;
       let fs = +e['40']; if (!isFinite(fs) || fs <= 0) fs = fontSize;
-      body += '<text x="' + (+e['10']) + '" y="' + Y(e['20']) +
+      const tx = +e['10'], ty = +e['20'];
+      // 给高度标签自绘引线箭头：从文字水平延伸到最近闭合矩形的最近垂直边
+      const isHeight = /总高\s*-\s*\d/.test(rawCleaned);
+      if (isHeight) {
+        const r = _findNearestRect(tx, ty);
+        if (r) {
+          let target;
+          if (tx < r.minX) target = r.minX;
+          else if (tx > r.maxX) target = r.maxX;
+          else target = (Math.abs(tx - r.minX) < Math.abs(tx - r.maxX)) ? r.minX : r.maxX;
+          const dir = target > tx ? 1 : -1;
+          const lineStart = tx + dir * (fs * (txt.length * 0.55 + 0.6));
+          const lineEnd = target;
+          if ((dir > 0 && lineEnd > lineStart) || (dir < 0 && lineEnd < lineStart)) {
+            body += '<line x1="' + lineStart + '" y1="' + Y(ty + fs * 0.3) +
+                    '" x2="' + lineEnd + '" y2="' + Y(ty + fs * 0.3) +
+                    '" stroke="#1d4ed8" stroke-width="' + dimStroke + '"/>';
+            const ah = arrowSize;
+            const yA = Y(ty + fs * 0.3);
+            body += '<polygon points="' + lineEnd + ',' + yA + ' ' +
+                    (lineEnd - dir * ah * 1.5) + ',' + (yA - ah * 0.5) + ' ' +
+                    (lineEnd - dir * ah * 1.5) + ',' + (yA + ah * 0.5) +
+                    '" fill="#1d4ed8"/>';
+          }
+        }
+      }
+      body += '<text x="' + tx + '" y="' + Y(ty) +
               '" font-size="' + fs + '" fill="#111827" font-family="Microsoft YaHei UI, sans-serif"' +
               ' text-anchor="start" dominant-baseline="hanging">' + _escSvg(txt) + '</text>';
     } else if (e.type === 'DIMENSION') {
@@ -1572,7 +1650,7 @@ function _buildGlassDxfSvg(ents, axis) {
         tx = isFinite(x1) ? (x1 + x2) / 2 : +e['10'];
         ty = isFinite(y1) ? (y1 + y2) / 2 : +e['20'];
       }
-      let label = _cleanMtextString(e['1']);
+      let label = _replaceHeightFormula(_cleanMtextString(e['1']));
       if (!label || label === '<>') {
         if (isFinite(x1) && isFinite(x2)) label = String(Math.round(Math.hypot(x2-x1, y2-y1)));
       }
@@ -1644,7 +1722,7 @@ function renderDxfGlass(wrap, panelData, glassEntry, axis) {
 
   const url = new URL('glass/' + glassEntry.dxf, window.location.href).href;
   const renderEnts = (ents) => {
-    const svg = _buildGlassDxfSvg(ents, axis);
+    const svg = _buildGlassDxfSvg(ents, axis, panelData);
     if (svg) holder.innerHTML = svg;
     else {
       // DXF 无可用实体 → 退回语义自绘
