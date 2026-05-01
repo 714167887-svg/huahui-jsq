@@ -607,6 +607,37 @@ input:focus, select:focus {
   border-radius: 12px;
 }
 
+/* === 玻璃图（从 jsq 移植） === */
+.glass-diagram-wrap {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.glass-diagram-title {
+  text-align: center;
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: var(--accent-deep, #166534);
+  letter-spacing: 0.03em;
+  margin-bottom: 8px;
+}
+.glass-diagram-frame {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  overflow: hidden;
+}
+.glass-diagram-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
 .err {
   margin: 6px 0; min-height: 16px;
   color: var(--danger); font-size: 0.8rem; font-weight: 600;
@@ -1038,11 +1069,6 @@ body.reference-dock-open .reference-panel { display: none; }
 
     <div class="err" id="err"></div>
 
-    <div class="action-row">
-      <button type="button" id="glass-calc-btn" class="btn-calc"><span>计算玻璃数据</span></button>
-      <button type="button" class="btn-calc" disabled><span>计算开门空间（待开发）</span></button>
-    </div>
-
     <!-- 截图工具条：默认 staging 隐藏，init 时迁移到矢量图下方的 #capture-host-stage -->
     <div id="capture-toolbar-staging">
       <div class="capture-toolbar" id="capture-toolbar">
@@ -1056,7 +1082,7 @@ body.reference-dock-open .reference-panel { display: none; }
       </div>
     </div>
 
-    <div id="result-area" class="result-area" style="display:none">
+    <div id="result-area" class="result-area">
       <div class="result-title">玻璃数据 · <b id="res-model-name">HY-055</b></div>
       <div class="glass-input-row">
         <div class="form-group">
@@ -1067,6 +1093,12 @@ body.reference-dock-open .reference-panel { display: none; }
       </div>
       <div id="result-grid" class="result-grid"></div>
       <div id="glass-placeholder" class="placeholder-tip" style="display:none">玻璃目录尚未配置 HY-055 钻石型</div>
+      <div id="glass-diagram-wrap" class="glass-diagram-wrap" style="display:none">
+        <div id="glass-diagram-title" class="glass-diagram-title">玻璃视图</div>
+        <div class="glass-diagram-frame" id="glass-diag-frame">
+          <canvas id="glass-diag-canvas" class="glass-diagram-canvas"></canvas>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -1206,11 +1238,682 @@ function drawDiagram() {
     try { syncThreeFromSvg(svg); } catch (e) { console.warn("3D sync failed:", e); }
 
     // 玻璃区已展开则同步刷新
-    if ($("#result-area").style.display !== "none") renderGlassResult();
+    if ($("#result-area")) renderGlassResult();
   } catch (err) {
     console.error(err);
     errBox.textContent = "渲染异常：" + (err && err.message || err);
   }
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* ===== 玻璃图（从 jsq 移植，仅含可视化部分） ===== */
+// 8317 钻石型 PDF 标签框（PDF 坐标系：595×842）
+const GLASS_DIAGRAM_LABELS_8317_LEFT = [
+  [79.1, 335.3, 88.1, 366.7, 'l', 'h', true ],
+  [211.0, 335.5, 220.0, 366.8, 'c', 'h', true ],
+  [508.1, 335.3, 517.1, 366.7, 'r', 'h', true ],
+  [130.5, 574.0, 161.8, 583.0, 'l', 'w', false],
+  [287.8, 572.3, 319.3, 581.3, 'c', 'w', false],
+  [445.2, 574.0, 476.5, 583.0, 'r', 'w', false]
+];
+const GLASS_DIAGRAM_LABELS_8317_RIGHT = [
+  [66.3, 329.2, 77.2, 367.4, 'r', 'h', true ],
+  [368.2, 329.3, 379.2, 367.6, 'c', 'h', true ],
+  [502.3, 329.2, 513.2, 367.4, 'l', 'h', true ],
+  [111.5, 579.0, 149.7, 589.9, 'r', 'w', false],
+  [271.4, 577.2, 309.6, 588.1, 'c', 'w', false],
+  [431.3, 579.0, 469.5, 589.9, 'l', 'w', false]
+];
+const GLASS_DIAGRAM_PDF_W = 595;
+const GLASS_DIAGRAM_PDF_H = 842;
+const _glassDiagImgCache = { url: null, img: null };
+
+function getGlassDiagramImageUrl(glassEntry) {
+  if (!glassEntry || !glassEntry.model) return null;
+  const axis = currentDirection === 'right' ? '右轴' : '左轴';
+  const name = glassEntry.model + ' ' + axis + (glassEntry.roomLabel || '') + '.png';
+  try { return new URL('glass/' + name, window.location.href).href; }
+  catch (e) { return null; }
+}
+
+function _renderGlassDiagramCanvas(canvas, img, labels, valMap) {
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  const sx = img.naturalWidth / GLASS_DIAGRAM_PDF_W;
+  const sy = img.naturalHeight / GLASS_DIAGRAM_PDF_H;
+  ctx.drawImage(img, 0, 0);
+  labels.forEach((lbl) => {
+    const x0 = lbl[0]*sx, y0 = lbl[1]*sy, x1 = lbl[2]*sx, y1 = lbl[3]*sy;
+    const seg = lbl[4], vtype = lbl[5], rotated = lbl[6];
+    const p = valMap[seg]; if (!p) return;
+    const val = String(vtype === 'h' ? p.glassH : p.glassW);
+    const cx = (x0+x1)/2, cy = (y0+y1)/2;
+    ctx.fillStyle = 'rgba(255,255,255,0.97)';
+    ctx.fillRect(x0, y0, x1-x0, y1-y0);
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (rotated) ctx.rotate(-Math.PI/2);
+    const fontSize = rotated ? Math.round(18*sy/2) : Math.round(18*sx/2);
+    ctx.font = '900 ' + fontSize + 'px "Microsoft YaHei UI", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
+    ctx.strokeText(val, 0, 0);
+    ctx.fillStyle = '#ff00ff';
+    ctx.fillText(val, 0, 0);
+    ctx.restore();
+  });
+}
+
+function drawGlassDiagram(panelData, glassEntry) {
+  const wrap = document.getElementById('glass-diagram-wrap');
+  if (!wrap || !panelData || !panelData.length) {
+    if (wrap) wrap.style.display = 'none';
+    return;
+  }
+  // 优先：catalog 配置 dxf 时，fetch DXF 直接渲染（含合页缺口）
+  if (glassEntry && glassEntry.dxf) {
+    renderDxfGlass(wrap, panelData, glassEntry, currentDirection);
+    return;
+  }
+  const imgUrl = getGlassDiagramImageUrl(glassEntry);
+  const isRight = currentDirection === 'right';
+  const labels = isRight ? GLASS_DIAGRAM_LABELS_8317_RIGHT : GLASS_DIAGRAM_LABELS_8317_LEFT;
+  const valMap = {};
+  panelData.forEach((p) => { valMap[p.segment] = p; });
+  const titleEl = document.getElementById('glass-diagram-title');
+  const canvas = document.getElementById('glass-diag-canvas');
+  if (!canvas) { wrap.style.display = 'none'; return; }
+  if (titleEl) {
+    titleEl.textContent = isRight ? '玻璃视图（右轴）'
+      : (currentDirection === 'left' ? '玻璃视图（左轴）' : '玻璃视图');
+  }
+  if (!imgUrl) { wrap.style.display = 'none'; return; }
+  // 隐藏可能存在的语义 SVG 容器
+  const semHolder = document.getElementById('glass-diag-semantic');
+  if (semHolder) semHolder.style.display = 'none';
+  canvas.style.display = '';
+  wrap.style.display = 'block';
+  if (_glassDiagImgCache.url === imgUrl && _glassDiagImgCache.img) {
+    _renderGlassDiagramCanvas(canvas, _glassDiagImgCache.img, labels, valMap);
+  } else {
+    const img = new Image();
+    img.onload = () => {
+      _glassDiagImgCache.url = imgUrl;
+      _glassDiagImgCache.img = img;
+      _renderGlassDiagramCanvas(canvas, img, labels, valMap);
+    };
+    img.onerror = () => { wrap.style.display = 'none'; };
+    img.src = imgUrl;
+  }
+}
+
+function clearGlassDiagram() {
+  const wrap = document.getElementById('glass-diagram-wrap');
+  if (wrap) wrap.style.display = 'none';
+}
+
+/* ===== DXF 直绘（解析 LINE/CIRCLE/MTEXT/DIMENSION/LWPOLYLINE） ===== */
+const _glassDxfCache = {}; // url -> entities[]
+
+function _parseDxfText(txt) {
+  const ls = txt.split(/\r?\n/);
+  let i = 0;
+  while (i < ls.length - 1) {
+    if (ls[i].trim() === '2' && ls[i+1].trim() === 'ENTITIES') break;
+    i++;
+  }
+  if (i >= ls.length - 1) return [];
+  i += 2;
+  const ents = [];
+  while (i < ls.length - 1) {
+    const code = ls[i].trim();
+    const val = (ls[i+1] || '').trim();
+    if (code === '0') {
+      if (val === 'ENDSEC') break;
+      const ent = { type: val, _verts: [], _bulges: [] };
+      i += 2;
+      let curX = null;
+      while (i < ls.length - 1) {
+        const c = ls[i].trim();
+        const v = (ls[i+1] || '').trim();
+        if (c === '0') break;
+        if (c === '102' && /^[{}]/.test(v)) { i += 2; continue; }
+        // LWPOLYLINE: collect repeated 10/20 pairs as vertices, 42 as bulge
+        if (ent.type === 'LWPOLYLINE') {
+          if (c === '10') { curX = parseFloat(v); }
+          else if (c === '20') {
+            if (curX !== null) { ent._verts.push([curX, parseFloat(v)]); curX = null; }
+          }
+          else if (c === '42') {
+            ent._bulges.push([ent._verts.length - 1, parseFloat(v)]);
+          }
+        }
+        if (!(c in ent)) ent[c] = v;
+        i += 2;
+      }
+      ents.push(ent);
+    } else {
+      i += 2;
+    }
+  }
+  return ents;
+}
+
+function _escSvg(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function _cleanMtextString(raw) {
+  let s = String(raw || '');
+  s = s.replace(/\\P/g, ' ');
+  s = s.replace(/\\[fFhHCcOoLlpQqTtWwAa][^;]*;/g, '');
+  s = s.replace(/[{}]/g, '');
+  // DXF 特殊控制码：%%C → Φ, %%D → °, %%P → ±, %%U/%%O → 下划线/上划线（去掉）
+  s = s.replace(/%%[Cc]/g, 'Φ').replace(/%%[Dd]/g, '°').replace(/%%[Pp]/g, '±');
+  s = s.replace(/%%[UuOo]/g, '');
+  return s.trim();
+}
+
+function _entityXRange(e) {
+  if (e.type === 'LINE') {
+    const x1 = +e['10'], x2 = +e['11'];
+    if (!isFinite(x1) || !isFinite(x2)) return null;
+    return [Math.min(x1, x2), Math.max(x1, x2)];
+  } else if (e.type === 'CIRCLE') {
+    const cx = +e['10'], r = +e['40'] || 0;
+    if (!isFinite(cx)) return null;
+    return [cx - r, cx + r];
+  } else if (e.type === 'MTEXT') {
+    const x = +e['10']; if (!isFinite(x)) return null;
+    return [x, x];
+  } else if (e.type === 'DIMENSION') {
+    const arr = [];
+    ['13','14','11','10'].forEach(k => { if (isFinite(+e[k])) arr.push(+e[k]); });
+    if (!arr.length) return null;
+    return [Math.min.apply(null, arr), Math.max.apply(null, arr)];
+  } else if (e.type === 'LWPOLYLINE') {
+    if (!e._verts || !e._verts.length) return null;
+    const xs = e._verts.map(v => v[0]).filter(isFinite);
+    if (!xs.length) return null;
+    return [Math.min.apply(null, xs), Math.max.apply(null, xs)];
+  }
+  return null;
+}
+
+// bulge → SVG arc segment ("A rx ry 0 large-arc sweep x y")
+// bulge = tan(theta/4), where theta is included angle of arc
+function _bulgeToArc(x1, y1, x2, y2, b, Y) {
+  const theta = 4 * Math.atan(Math.abs(b));
+  const chord = Math.hypot(x2-x1, y2-y1);
+  const r = chord / (2 * Math.sin(theta/2));
+  const largeArc = theta > Math.PI ? 1 : 0;
+  // DXF positive bulge = CCW; SVG with Y-flipped renders CCW as CW visually; flip sweep
+  const sweep = b > 0 ? 0 : 1;
+  return 'A ' + r + ' ' + r + ' 0 ' + largeArc + ' ' + sweep + ' ' + x2 + ' ' + Y(y2);
+}
+
+function _buildGlassDxfSvg(ents, axis) {
+  // 计算全图水平 bbox 用于按 axis 裁剪
+  const allXs = [];
+  ents.forEach(e => {
+    const r = _entityXRange(e);
+    if (!r) return;
+    if (isFinite(r[0])) allXs.push(r[0]);
+    if (isFinite(r[1])) allXs.push(r[1]);
+  });
+  let sliceMid = null;
+  if (allXs.length && (axis === 'left' || axis === 'right')) {
+    sliceMid = (Math.min.apply(null, allXs) + Math.max.apply(null, allXs)) / 2;
+  }
+  const onSide = (x) => axis === 'left' ? x <= sliceMid + 1e-6 : x >= sliceMid - 1e-6;
+
+  const filtered = [];
+  ents.forEach(e => {
+    if (sliceMid === null) { filtered.push(e); return; }
+    if (e.type === 'LINE') {
+      const x1 = +e['10'], x2 = +e['11'], y1 = +e['20'], y2 = +e['21'];
+      if (!isFinite(x1) || !isFinite(x2)) { filtered.push(e); return; }
+      const i1 = onSide(x1), i2 = onSide(x2);
+      if (i1 && i2) { filtered.push(e); return; }
+      if (!i1 && !i2) return;
+      const dx = x2 - x1;
+      if (Math.abs(dx) < 1e-9) return;
+      const t = (sliceMid - x1) / dx;
+      const iy = y1 + t * (y2 - y1);
+      const ne = { type: 'LINE' };
+      if (i1) { ne['10'] = x1; ne['20'] = y1; ne['11'] = sliceMid; ne['21'] = iy; }
+      else    { ne['10'] = sliceMid; ne['20'] = iy; ne['11'] = x2; ne['21'] = y2; }
+      filtered.push(ne);
+    } else if (e.type === 'CIRCLE' || e.type === 'MTEXT') {
+      const x = +e['10'];
+      if (isFinite(x) && onSide(x)) filtered.push(e);
+    } else if (e.type === 'DIMENSION') {
+      let dxv;
+      if (isFinite(+e['11'])) dxv = +e['11'];
+      else if (isFinite(+e['13']) && isFinite(+e['14'])) dxv = (+e['13'] + +e['14']) / 2;
+      else dxv = +e['10'];
+      if (isFinite(dxv) && onSide(dxv)) filtered.push(e);
+    } else if (e.type === 'LWPOLYLINE') {
+      // 取顶点中位数 x，整体在某侧才保留（避免在多段折弯线中切断）
+      if (!e._verts || !e._verts.length) return;
+      const xs = e._verts.map(v => v[0]).filter(isFinite).sort((a,b)=>a-b);
+      const mx = xs[Math.floor(xs.length/2)];
+      if (onSide(mx)) filtered.push(e);
+    } else {
+      filtered.push(e);
+    }
+  });
+
+  // Bounding box for viewBox
+  const xs = [], ys = [];
+  filtered.forEach(e => {
+    if (e.type === 'LINE') {
+      xs.push(+e['10'], +e['11']); ys.push(+e['20'], +e['21']);
+    } else if (e.type === 'CIRCLE') {
+      const cx = +e['10'], cy = +e['20'], r = +e['40'] || 0;
+      xs.push(cx - r, cx + r); ys.push(cy - r, cy + r);
+    } else if (e.type === 'MTEXT') {
+      xs.push(+e['10']); ys.push(+e['20']);
+    } else if (e.type === 'DIMENSION') {
+      ['13','14','11','10'].forEach(k => { if (isFinite(+e[k])) xs.push(+e[k]); });
+      ['23','24','21','20'].forEach(k => { if (isFinite(+e[k])) ys.push(+e[k]); });
+    } else if (e.type === 'LWPOLYLINE') {
+      e._verts.forEach(v => { if (isFinite(v[0]) && isFinite(v[1])) { xs.push(v[0]); ys.push(v[1]); } });
+    }
+  });
+  const xsF = xs.filter(isFinite), ysF = ys.filter(isFinite);
+  if (!xsF.length) return '';
+  const minX = Math.min.apply(null, xsF), maxX = Math.max.apply(null, xsF);
+  const minY = Math.min.apply(null, ysF), maxY = Math.max.apply(null, ysF);
+  const w = maxX - minX, h = maxY - minY;
+  const pad = (w + h) * 0.04 || 10;
+  const vbX = minX - pad, vbY = -(maxY) - pad;
+  const vbW = w + pad * 2, vbH = h + pad * 2;
+  const unit = Math.max(vbW, vbH);
+  const stroke = unit / 600;
+  const dimStroke = unit / 900;
+  const fontSize = unit / 35;
+  const dimFont = unit / 45;
+  const Y = (y) => -(+y);
+
+  let body = '';
+  filtered.forEach(e => {
+    if (e.type === 'LINE') {
+      body += '<line x1="' + (+e['10']) + '" y1="' + Y(e['20']) +
+              '" x2="' + (+e['11']) + '" y2="' + Y(e['21']) +
+              '" stroke="#1f2937" stroke-width="' + stroke + '" stroke-linecap="round"/>';
+    } else if (e.type === 'CIRCLE') {
+      body += '<circle cx="' + (+e['10']) + '" cy="' + Y(e['20']) +
+              '" r="' + (+e['40']) + '" fill="none" stroke="#dc2626" stroke-width="' + stroke + '"/>';
+    } else if (e.type === 'MTEXT') {
+      const txt = _cleanMtextString(e['1']);
+      if (!txt) return;
+      let fs = +e['40']; if (!isFinite(fs) || fs <= 0) fs = fontSize;
+      body += '<text x="' + (+e['10']) + '" y="' + Y(e['20']) +
+              '" font-size="' + fs + '" fill="#111827" font-family="Microsoft YaHei UI, sans-serif"' +
+              ' text-anchor="start" dominant-baseline="hanging">' + _escSvg(txt) + '</text>';
+    } else if (e.type === 'DIMENSION') {
+      const x1 = +e['13'], y1 = +e['23'], x2 = +e['14'], y2 = +e['24'];
+      if (isFinite(x1) && isFinite(x2)) {
+        body += '<line x1="' + x1 + '" y1="' + Y(y1) + '" x2="' + x2 + '" y2="' + Y(y2) +
+                '" stroke="#3b82f6" stroke-width="' + dimStroke +
+                '" stroke-dasharray="' + (dimStroke*5) + ',' + (dimStroke*4) + '"/>';
+      }
+      let tx = +e['11'], ty = +e['21'];
+      if (!isFinite(tx) || !isFinite(ty)) {
+        tx = isFinite(x1) ? (x1 + x2) / 2 : +e['10'];
+        ty = isFinite(y1) ? (y1 + y2) / 2 : +e['20'];
+      }
+      let label = _cleanMtextString(e['1']);
+      if (!label || label === '<>') {
+        if (isFinite(x1) && isFinite(x2)) label = String(Math.round(Math.hypot(x2-x1, y2-y1)));
+      }
+      if (label) {
+        body += '<text x="' + tx + '" y="' + Y(ty) +
+                '" font-size="' + dimFont + '" fill="#1d4ed8"' +
+                ' text-anchor="middle" dominant-baseline="middle">' + _escSvg(label) + '</text>';
+      }
+    } else if (e.type === 'LWPOLYLINE') {
+      if (!e._verts || e._verts.length < 2) return;
+      const closed = e['70'] === '1';
+      const bulgeMap = {};
+      (e._bulges || []).forEach(b => { bulgeMap[b[0]] = b[1]; });
+      const verts = e._verts;
+      let d = 'M ' + verts[0][0] + ' ' + Y(verts[0][1]);
+      for (let k = 0; k < verts.length - 1; k++) {
+        const b = bulgeMap[k];
+        if (b !== undefined && Math.abs(b) > 1e-6) {
+          d += ' ' + _bulgeToArc(verts[k][0], verts[k][1], verts[k+1][0], verts[k+1][1], b, Y);
+        } else {
+          d += ' L ' + verts[k+1][0] + ' ' + Y(verts[k+1][1]);
+        }
+      }
+      if (closed) {
+        const lastIdx = verts.length - 1;
+        const b = bulgeMap[lastIdx];
+        if (b !== undefined && Math.abs(b) > 1e-6) {
+          d += ' ' + _bulgeToArc(verts[lastIdx][0], verts[lastIdx][1], verts[0][0], verts[0][1], b, Y);
+        }
+        d += ' Z';
+      }
+      body += '<path d="' + d + '" fill="none" stroke="#1f2937" stroke-width="' + stroke +
+              '" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+  });
+
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' +
+         vbX + ' ' + vbY + ' ' + vbW + ' ' + vbH +
+         '" preserveAspectRatio="xMidYMid meet"' +
+         ' style="width:100%;height:auto;max-height:560px;display:block;background:#fff;border-radius:6px;">' +
+         body + '</svg>';
+}
+
+function renderDxfGlass(wrap, panelData, glassEntry, axis) {
+  const titleEl = document.getElementById('glass-diagram-title');
+  const canvas = document.getElementById('glass-diag-canvas');
+  const frame = document.getElementById('glass-diag-frame');
+  if (!frame) { wrap.style.display = 'none'; return; }
+  const modelLabel = (glassEntry && glassEntry.modelKey) ? glassEntry.modelKey + '款'
+                    : (glassEntry && glassEntry.model ? glassEntry.model : '');
+  if (titleEl) {
+    const axisText = axis === 'right' ? '右轴' : axis === 'left' ? '左轴' : '未选轴向';
+    titleEl.textContent = '玻璃图（' + (modelLabel ? modelLabel + ' · ' : '') + axisText + ' · 含合页缺口）';
+  }
+  if (canvas) canvas.style.display = 'none';
+
+  let holder = document.getElementById('glass-diag-dxf');
+  if (!holder) {
+    holder = document.createElement('div');
+    holder.id = 'glass-diag-dxf';
+    holder.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:center;';
+    frame.appendChild(holder);
+  }
+  // 隐藏旧语义容器
+  const semHolder = document.getElementById('glass-diag-semantic');
+  if (semHolder) semHolder.style.display = 'none';
+  holder.style.display = '';
+  wrap.style.display = 'block';
+
+  const url = new URL('glass/' + glassEntry.dxf, window.location.href).href;
+  const renderEnts = (ents) => {
+    const svg = _buildGlassDxfSvg(ents, axis);
+    if (svg) holder.innerHTML = svg;
+    else {
+      // DXF 无可用实体 → 退回语义自绘
+      holder.innerHTML = _buildSemanticGlassSvg(panelData, axis);
+    }
+  };
+  if (_glassDxfCache[url]) {
+    renderEnts(_glassDxfCache[url]);
+    return;
+  }
+  fetch(url, { cache: 'no-store' })
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+    .then(buf => {
+      // DXF 文本：HY-055 实测为 UTF-8（DWGCODEPAGE=ANSI_936 头部是误导）。
+      // 先尝试 UTF-8（fatal=true 检测失败再回退 GBK），保证中文正确解码
+      let text;
+      try {
+        text = new TextDecoder('utf-8', { fatal: true }).decode(buf);
+      } catch (e) {
+        try { text = new TextDecoder('gbk', { fatal: false }).decode(buf); }
+        catch (e2) { text = new TextDecoder('utf-8', { fatal: false }).decode(buf); }
+      }
+      const ents = _parseDxfText(text);
+      _glassDxfCache[url] = ents;
+      renderEnts(ents);
+    })
+    .catch(err => {
+      console.warn('DXF load failed, fallback to semantic:', err);
+      holder.innerHTML = _buildSemanticGlassSvg(panelData, axis);
+    });
+}
+
+/* ===== 语义重建玻璃图（解读 DXF 后用计算尺寸自绘） ===== */
+function renderSemanticGlass(wrap, panelData, glassEntry, axis) {
+  const titleEl = document.getElementById('glass-diagram-title');
+  const canvas = document.getElementById('glass-diag-canvas');
+  const frame = document.getElementById('glass-diag-frame');
+  if (!frame) { wrap.style.display = 'none'; return; }
+  const modelLabel = (glassEntry && glassEntry.modelKey) ? glassEntry.modelKey + '款'
+                    : (glassEntry && glassEntry.model ? glassEntry.model : '');
+  if (titleEl) {
+    const axisText = axis === 'right' ? '右轴' : axis === 'left' ? '左轴' : '未选轴向';
+    titleEl.textContent = '玻璃图（' + (modelLabel ? modelLabel + ' · ' : '') + axisText + '）';
+  }
+  if (canvas) canvas.style.display = 'none';
+  let holder = document.getElementById('glass-diag-semantic');
+  if (!holder) {
+    holder = document.createElement('div');
+    holder.id = 'glass-diag-semantic';
+    holder.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:center;';
+    frame.appendChild(holder);
+  }
+  holder.style.display = '';
+  wrap.style.display = 'block';
+  holder.innerHTML = _buildSemanticGlassSvg(panelData, axis);
+}
+
+function _buildSemanticGlassSvg(panelData, axis) {
+  const byKey = {};
+  (panelData || []).forEach((p) => { byKey[p.segment] = p; });
+  const L = byKey.l, C = byKey.c, R = byKey.r;
+  if (!L || !C || !R) {
+    return '<div style="color:#9ca3af;font-size:12px;padding:20px;">玻璃数据不完整</div>';
+  }
+  const GAP = 218;
+  const DOOR_INSET_TOP = 14;   // HY-055: 门玻比固玻顶部下移
+  const DOOR_INSET_BOT = 15;   // HY-055: 门玻比固玻底部上移（合计 29 = 47-18）
+  const DOOR_INSET_X = 36;
+  const HINGE_BOTTOM = 100;
+  const HINGE_SPACING = 1000;
+  const HINGE_TOP = HINGE_BOTTOM + HINGE_SPACING;
+  const HINGE_R = 9;
+  const BRACKET_LEN = 60;
+  const DIM_GAP_BOTTOM = 110;
+  const DIM_GAP_SIDE = 80;
+  const LABEL_BELOW = 230;
+
+  const doorAxisOnRight = axis === 'right';
+  const H = Math.max(L.glassH, C.glassH, R.glassH);
+  const maxH = H;
+  const xL = 0;
+  const xC = xL + L.glassW + GAP;
+  const xR = xC + C.glassW + GAP;
+  const totalW = xR + R.glassW;
+
+  const marginL = DIM_GAP_SIDE + 90;
+  const marginR = DIM_GAP_SIDE + 90;
+  const marginT = 60;
+  const marginB = LABEL_BELOW + 80;
+  const vbX = -marginL, vbY = -marginT;
+  const vbW = totalW + marginL + marginR;
+  const vbH = maxH + marginT + marginB;
+  const unit = Math.max(vbW, vbH);
+  const stroke = unit / 700;
+  const dimStroke = unit / 1100;
+  const dimFont = unit / 42;
+  const labelFont = unit / 42;
+  const smallFont = unit / 42;
+
+  const defs = '<defs>' +
+    '<style>.t-zh{font-family:"PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;}' +
+    '.t-num{font-family:"Inter","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-feature-settings:"tnum" 1,"ss01" 1;font-variant-numeric:tabular-nums lining-nums;}' +
+    '.t-mix{font-family:"Inter","Segoe UI","PingFang SC","Microsoft YaHei UI",sans-serif;font-feature-settings:"tnum" 1;font-variant-numeric:tabular-nums;}</style>' +
+    '<linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#e0f2fe" stop-opacity="0.55"/>' +
+      '<stop offset="55%" stop-color="#bae6fd" stop-opacity="0.18"/>' +
+      '<stop offset="100%" stop-color="#7dd3fc" stop-opacity="0.10"/>' +
+    '</linearGradient>' +
+    '<linearGradient id="doorGrad" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#fce7f3" stop-opacity="0.55"/>' +
+      '<stop offset="55%" stop-color="#fbcfe8" stop-opacity="0.20"/>' +
+      '<stop offset="100%" stop-color="#f9a8d4" stop-opacity="0.12"/>' +
+    '</linearGradient>' +
+    '<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">' +
+      '<feDropShadow dx="0" dy="' + (unit/600) + '" stdDeviation="' + (unit/500) + '" flood-color="#0f172a" flood-opacity="0.18"/>' +
+    '</filter>' +
+    '<marker id="dimArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="' + (unit/250) + '" markerHeight="' + (unit/250) + '" orient="auto" markerUnits="userSpaceOnUse">' +
+      '<path d="M0,0 L10,5 L0,10 z" fill="#1d4ed8"/>' +
+    '</marker>' +
+    '<marker id="dimArrowStart" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="' + (unit/250) + '" markerHeight="' + (unit/250) + '" orient="auto" markerUnits="userSpaceOnUse">' +
+      '<path d="M10,0 L0,5 L10,10 z" fill="#1d4ed8"/>' +
+    '</marker>' +
+  '</defs>';
+
+  function rect(x, y, w, h, fillId) {
+    let s = '';
+    s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+         '" rx="' + (stroke*1.2) + '" ry="' + (stroke*1.2) + '"' +
+         ' fill="url(#' + (fillId || 'glassGrad') + ')" stroke="#0f172a" stroke-width="' + stroke +
+         '" filter="url(#softShadow)"/>';
+    s += '<line x1="' + (x + stroke*4) + '" y1="' + (y + stroke*2) + '" x2="' + (x + w - stroke*4) + '" y2="' + (y + stroke*2) +
+         '" stroke="#fff" stroke-opacity="0.55" stroke-width="' + (stroke*0.6) + '"/>';
+    return s;
+  }
+
+  function panelLabel(x, w, baseY, name, info) {
+    let s = '';
+    s += '<text class="t-zh" x="' + (x + w/2) + '" y="' + baseY +
+         '" font-size="' + labelFont + '" fill="#0f172a"' +
+         ' text-anchor="middle" dominant-baseline="alphabetic" font-weight="700"' +
+         ' letter-spacing="' + (labelFont*0.06) + '">' + escapeHtml(name) + '</text>';
+    s += '<text class="t-num" x="' + (x + w/2) + '" y="' + (baseY + labelFont*1.15) +
+         '" font-size="' + labelFont + '" fill="#334155"' +
+         ' text-anchor="middle" dominant-baseline="alphabetic" font-weight="500">' +
+         info.glassW + ' × ' + info.glassH + '</text>';
+    return s;
+  }
+
+  function dimWidth(x, w, y, value) {
+    let s = '';
+    s += '<line x1="' + x + '" y1="' + y + '" x2="' + (x+w) + '" y2="' + y +
+         '" stroke="#1d4ed8" stroke-width="' + dimStroke +
+         '" marker-start="url(#dimArrowStart)" marker-end="url(#dimArrow)"/>';
+    const extLen = unit / 120;
+    s += '<line x1="' + x + '" y1="' + (y - extLen) + '" x2="' + x + '" y2="' + (y + extLen*0.4) +
+         '" stroke="#94a3b8" stroke-width="' + (dimStroke*0.7) + '"/>';
+    s += '<line x1="' + (x+w) + '" y1="' + (y - extLen) + '" x2="' + (x+w) + '" y2="' + (y + extLen*0.4) +
+         '" stroke="#94a3b8" stroke-width="' + (dimStroke*0.7) + '"/>';
+    s += '<text class="t-num" x="' + (x + w/2) + '" y="' + (y - dimFont*0.45) +
+         '" font-size="' + dimFont + '" fill="#1d4ed8"' +
+         ' text-anchor="middle" dominant-baseline="alphabetic" font-weight="600">' + value + '</text>';
+    return s;
+  }
+
+  function dimHeight(x, y, h, value, side) {
+    let s = '';
+    s += '<line x1="' + x + '" y1="' + y + '" x2="' + x + '" y2="' + (y+h) +
+         '" stroke="#1d4ed8" stroke-width="' + dimStroke +
+         '" marker-start="url(#dimArrowStart)" marker-end="url(#dimArrow)"/>';
+    const extLen = unit / 120;
+    const extDir = side === 'right' ? -1 : 1;
+    s += '<line x1="' + (x - extLen*extDir) + '" y1="' + y + '" x2="' + (x + extLen*0.4*extDir) + '" y2="' + y +
+         '" stroke="#94a3b8" stroke-width="' + (dimStroke*0.7) + '"/>';
+    s += '<line x1="' + (x - extLen*extDir) + '" y1="' + (y+h) + '" x2="' + (x + extLen*0.4*extDir) + '" y2="' + (y+h) +
+         '" stroke="#94a3b8" stroke-width="' + (dimStroke*0.7) + '"/>';
+    const tx = side === 'right' ? x + dimFont*0.45 : x - dimFont*0.45;
+    const anchor = side === 'right' ? 'start' : 'end';
+    s += '<text class="t-num" x="' + tx + '" y="' + (y + h/2) +
+         '" font-size="' + dimFont + '" fill="#1d4ed8"' +
+         ' text-anchor="' + anchor + '" dominant-baseline="middle" font-weight="600"' +
+         ' transform="rotate(-90, ' + tx + ', ' + (y + h/2) + ')">' + value + '</text>';
+    return s;
+  }
+
+  function door(x, y, w, h) {
+    let s = '';
+    s += '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h +
+         '" rx="' + (stroke*1.2) + '" ry="' + (stroke*1.2) + '"' +
+         ' fill="url(#doorGrad)" stroke="#0f172a" stroke-width="' + stroke +
+         '" filter="url(#softShadow)"/>';
+    s += '<line x1="' + (x + stroke*4) + '" y1="' + (y + stroke*2) + '" x2="' + (x + w - stroke*4) + '" y2="' + (y + stroke*2) +
+         '" stroke="#fff" stroke-opacity="0.55" stroke-width="' + (stroke*0.6) + '"/>';
+    const holeX = doorAxisOnRight ? x + DOOR_INSET_X : x + w - DOOR_INSET_X;
+    const sideOut = doorAxisOnRight ? -1 : 1;
+    const sideIn = -sideOut;
+    const doorBot = y + h;
+    const holeYBot = doorBot - HINGE_BOTTOM;
+    const holeYTop = doorBot - HINGE_TOP;
+    [holeYBot, holeYTop].forEach((hy) => {
+      const bx1 = holeX + sideIn*12;
+      const bx2 = holeX + sideOut*(BRACKET_LEN - DOOR_INSET_X);
+      s += '<line x1="' + bx1 + '" y1="' + hy + '" x2="' + bx2 + '" y2="' + hy +
+           '" stroke="#dc2626" stroke-width="' + (stroke*0.9) + '"/>';
+      s += '<circle cx="' + holeX + '" cy="' + hy + '" r="' + HINGE_R +
+           '" fill="#fef2f2" stroke="#dc2626" stroke-width="' + (stroke*0.9) + '"/>';
+      s += '<circle cx="' + holeX + '" cy="' + hy + '" r="' + (HINGE_R*0.45) +
+           '" fill="#dc2626" fill-opacity="0.85"/>';
+    });
+    const leadEndX = holeX + sideIn*(HINGE_R + smallFont*0.4);
+    s += '<line x1="' + (holeX + sideIn*(HINGE_R+2)) + '" y1="' + holeYTop + '" x2="' + leadEndX + '" y2="' + (holeYTop - smallFont*0.35) +
+         '" stroke="#dc2626" stroke-width="' + (dimStroke*0.8) + '"/>';
+    s += '<text class="t-mix" x="' + (leadEndX + sideIn*2) + '" y="' + (holeYTop - smallFont*0.55) +
+         '" font-size="' + smallFont + '" fill="#dc2626"' +
+         ' text-anchor="' + (sideIn > 0 ? 'start' : 'end') + '" dominant-baseline="alphabetic" font-weight="700"' +
+         ' paint-order="stroke" stroke="#ffffff" stroke-width="' + (smallFont*0.18) + '" stroke-linejoin="round">2-Φ12</text>';
+    s += '<text class="t-num" x="' + (holeX + sideOut*(BRACKET_LEN/2)) + '" y="' + (holeYTop - smallFont*0.35) +
+         '" font-size="' + smallFont + '" fill="#1d4ed8"' +
+         ' text-anchor="middle" dominant-baseline="alphabetic" font-weight="700"' +
+         ' paint-order="stroke" stroke="#ffffff" stroke-width="' + (smallFont*0.18) + '" stroke-linejoin="round">60</text>';
+    const dimX = holeX + sideIn*22;
+    const tx = dimX + sideIn*(smallFont*0.55);
+    s += '<line x1="' + dimX + '" y1="' + holeYTop + '" x2="' + dimX + '" y2="' + holeYBot +
+         '" stroke="#1d4ed8" stroke-width="' + dimStroke +
+         '" marker-start="url(#dimArrowStart)" marker-end="url(#dimArrow)"/>';
+    s += '<text class="t-num" x="' + tx + '" y="' + ((holeYTop+holeYBot)/2) +
+         '" font-size="' + smallFont + '" fill="#1d4ed8"' +
+         ' text-anchor="middle" dominant-baseline="middle" font-weight="700"' +
+         ' paint-order="stroke" stroke="#ffffff" stroke-width="' + (smallFont*0.18) + '" stroke-linejoin="round"' +
+         ' transform="rotate(-90, ' + tx + ', ' + ((holeYTop+holeYBot)/2) + ')">' + HINGE_SPACING + '</text>';
+    s += '<line x1="' + dimX + '" y1="' + holeYBot + '" x2="' + dimX + '" y2="' + doorBot +
+         '" stroke="#1d4ed8" stroke-width="' + dimStroke +
+         '" marker-start="url(#dimArrowStart)" marker-end="url(#dimArrow)"/>';
+    s += '<text class="t-num" x="' + tx + '" y="' + ((holeYBot+doorBot)/2) +
+         '" font-size="' + smallFont + '" fill="#1d4ed8"' +
+         ' text-anchor="middle" dominant-baseline="middle" font-weight="700"' +
+         ' paint-order="stroke" stroke="#ffffff" stroke-width="' + (smallFont*0.18) + '" stroke-linejoin="round"' +
+         ' transform="rotate(-90, ' + tx + ', ' + ((holeYBot+doorBot)/2) + ')">' + HINGE_BOTTOM + '</text>';
+    return s;
+  }
+
+  let body = '';
+  const yL = (maxH - L.glassH) / 2;
+  const yR = (maxH - R.glassH) / 2;
+  const yC = (maxH - C.glassH) / 2 + DOOR_INSET_TOP;
+  const hC = C.glassH - DOOR_INSET_TOP - DOOR_INSET_BOT;
+  body += rect(xL, yL, L.glassW, L.glassH, 'glassGrad');
+  body += door(xC, yC, C.glassW, hC);
+  body += rect(xR, yR, R.glassW, R.glassH, 'glassGrad');
+
+  const dimWY = maxH + DIM_GAP_BOTTOM;
+  body += dimWidth(xL, L.glassW, dimWY, L.glassW);
+  body += dimWidth(xC, C.glassW, dimWY, C.glassW);
+  body += dimWidth(xR, R.glassW, dimWY, R.glassW);
+  const labelY = maxH + LABEL_BELOW;
+  body += panelLabel(xL, L.glassW, labelY, '固玻', L);
+  body += panelLabel(xC, C.glassW, labelY, '门玻', C);
+  body += panelLabel(xR, R.glassW, labelY, '固玻', R);
+
+  body += dimHeight(-DIM_GAP_SIDE, yL, L.glassH, L.glassH, 'left');
+  body += dimHeight(totalW + DIM_GAP_SIDE, yR, R.glassH, R.glassH, 'right');
+  const doorDimX = doorAxisOnRight ? xC + C.glassW + GAP/2 : xC - GAP/2;
+  const doorDimSide = doorAxisOnRight ? 'right' : 'left';
+  body += dimHeight(doorDimX, yC, hC, C.glassH, doorDimSide);
+
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' +
+         vbX + ' ' + vbY + ' ' + vbW + ' ' + vbH +
+         '" preserveAspectRatio="xMidYMid meet"' +
+         ' style="width:100%;height:auto;max-height:540px;display:block;background:linear-gradient(180deg,#fafbff 0%,#f1f5f9 100%);border-radius:6px;">' +
+         defs + body + '</svg>';
 }
 
 function renderGlassResult() {
@@ -1239,10 +1942,12 @@ function renderGlassResult() {
   const entry = findGlassEntry($("#model-input").value, "diamond");
   if (!entry || !Array.isArray(entry.panels) || !entry.panels.length) {
     placeholder.style.display = "";
+    clearGlassDiagram();
     return;
   }
   placeholder.style.display = "none";
 
+  const diagramPanelData = [];
   entry.panels.forEach((panel, idx) => {
     const segVal = toNumber(guides[panel.segment], 0);
     const w = evalFormula(panel.widthFormula, totalH, segVal);
@@ -1253,19 +1958,18 @@ function renderGlassResult() {
     cell.innerHTML = `<span class="k">${panel.label} ×${panel.count}</span>
       <span class="v">${fmt(w)} × ${fmt(h)}</span>`;
     grid.appendChild(cell);
+    if (Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0) {
+      diagramPanelData.push({
+        label: panel.label || panel.segment,
+        segment: panel.segment,
+        glassW: Math.round(w),
+        glassH: Math.round(h),
+        widthFormula: panel.widthFormula || '',
+        heightFormula: panel.heightFormula || ''
+      });
+    }
   });
-}
-
-async function calculateGlassData() {
-  const result = window.__lastResult;
-  if (!result || !result.geoLengths) {
-    $("#err").textContent = "请先输入有效尺寸";
-    return;
-  }
-  await loadGlassCatalog();
-  $("#result-area").style.display = "";
-  renderGlassResult();
-  $("#result-area").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  drawGlassDiagram(diagramPanelData, entry);
 }
 
 function bindModeButtons(selector, attrName, onChange) {
@@ -1347,7 +2051,10 @@ function init() {
     }
   });
 
-  $("#glass-calc-btn").addEventListener("click", calculateGlassData);
+  // 启动时预加载玻璃目录，并在首次 drawDiagram 后自动渲染玻璃区
+  loadGlassCatalog().then(() => {
+    if (window.__lastResult) renderGlassResult();
+  });
 
   moveCaptureToolbarToActiveHost();
   setupViewSwitcher();
