@@ -1476,20 +1476,7 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
       return Number.isFinite(v) ? String(v) : full;
     });
   };
-  // 预过滤：丢掉 DXF 原生 DIMENSION 和「与高度无关的数字 MTEXT 噪音」（1000/145/100/60/8/10/14/2-R2/2-Φ10 等）
-  // 仅保留：含「总高-N」公式的 MTEXT（替换为实际高度）+ 含中文非公式的 MTEXT（左转轴/右转轴）
-  const _hasChinese = (s) => /[\u4e00-\u9fff]/.test(s || '');
-  ents = ents.filter(e => {
-    if (e.type === 'DIMENSION') return false;
-    if (e.type === 'MTEXT') {
-      const cleaned = _cleanMtextString(e['1']);
-      if (!cleaned) return false;
-      if (/总高\s*-\s*\d/.test(cleaned)) return true;     // 高度公式（待替换）
-      if (_hasChinese(cleaned)) return true;              // 转轴文字
-      return false;                                        // 纯数字噪音
-    }
-    return true;
-  });
+  // 预过滤：保留 DIMENSION 实体（其 group 1 文本是孔位/开缺尺寸），但渲染时只画文字不画蓝色虚线/箭头
   // 计算全图水平 bbox 用于按 axis 裁剪
   const allXs = [];
   ents.forEach(e => {
@@ -1609,6 +1596,8 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
       const txt = _replaceHeightFormula(rawCleaned);
       if (!txt) return;
       let fs = +e['40']; if (!isFinite(fs) || fs <= 0) fs = fontSize;
+      // 钳位：DXF 中很多数字 MTEXT 的字号被设为 5-20mm，相对整图(1000+ mm)太小看不见
+      if (fs < fontSize * 0.6) fs = fontSize * 0.7;
       const tx = +e['10'], ty = +e['20'];
       // 给高度标签自绘引线箭头：从文字水平延伸到最近闭合矩形的最近垂直边
       const isHeight = /总高\s*-\s*\d/.test(rawCleaned);
@@ -1639,12 +1628,8 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
               '" font-size="' + fs + '" fill="#111827" font-family="Microsoft YaHei UI, sans-serif"' +
               ' text-anchor="start" dominant-baseline="hanging">' + _escSvg(txt) + '</text>';
     } else if (e.type === 'DIMENSION') {
+      // 不画 DXF 原生的虚线/引线，只渲染文字（即孔位/开缺尺寸数值）
       const x1 = +e['13'], y1 = +e['23'], x2 = +e['14'], y2 = +e['24'];
-      if (isFinite(x1) && isFinite(x2)) {
-        body += '<line x1="' + x1 + '" y1="' + Y(y1) + '" x2="' + x2 + '" y2="' + Y(y2) +
-                '" stroke="#3b82f6" stroke-width="' + dimStroke +
-                '" stroke-dasharray="' + (dimStroke*5) + ',' + (dimStroke*4) + '"/>';
-      }
       let tx = +e['11'], ty = +e['21'];
       if (!isFinite(tx) || !isFinite(ty)) {
         tx = isFinite(x1) ? (x1 + x2) / 2 : +e['10'];
@@ -1654,9 +1639,12 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
       if (!label || label === '<>') {
         if (isFinite(x1) && isFinite(x2)) label = String(Math.round(Math.hypot(x2-x1, y2-y1)));
       }
-      if (label) {
+      if (label && isFinite(tx) && isFinite(ty)) {
+        // Φ/R 标注（孔位直径/圆角半径）用红色，其余尺寸用蓝色
+        const isHoleOrRadius = /[ΦR]/.test(label);
+        const color = isHoleOrRadius ? '#dc2626' : '#1d4ed8';
         body += '<text x="' + tx + '" y="' + Y(ty) +
-                '" font-size="' + dimFont + '" fill="#1d4ed8"' +
+                '" font-size="' + dimFont + '" fill="' + color + '"' +
                 ' text-anchor="middle" dominant-baseline="middle">' + _escSvg(label) + '</text>';
       }
     } else if (e.type === 'LWPOLYLINE') {
