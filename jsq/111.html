@@ -1460,7 +1460,12 @@ function _bulgeToArc(x1, y1, x2, y2, b, Y) {
   return 'A ' + r + ' ' + r + ' 0 ' + largeArc + ' ' + sweep + ' ' + x2 + ' ' + Y(y2);
 }
 
-function _buildGlassDxfSvg(ents, axis, panelData) {
+function _buildGlassDxfSvg(ents, axis, panelData, opts) {
+  const _opts = opts || {};
+  const _modelStr = _opts.model ? String(_opts.model) : '';
+  const _bottomLabel = _modelStr
+    ? (_modelStr + ' · ' + (axis === 'right' ? '转轴在右' : axis === 'left' ? '转轴在左' : '转轴玻璃'))
+    : (axis === 'right' ? '转轴在右' : axis === 'left' ? '转轴在左' : '');
   // panelData 用于把 DXF 中固化的「总高-N」MTEXT 替换为运行时计算的实际高度
   const heightByOffset = {};
   if (Array.isArray(panelData)) {
@@ -1554,23 +1559,82 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
   const vbX = minX - pad, vbY = -(maxY) - pad;
   const vbW = w + pad * 2, vbH = h + pad * 2;
   const unit = Math.max(vbW, vbH);
-  const stroke = unit / 600;
-  const dimStroke = unit / 900;
+  const stroke = unit / 700;
+  const dimStroke = unit / 1100;
   const fontSize = unit / 35;
-  const dimFont = unit / 45;
+  const dimFont = unit / 42;
   const Y = (y) => -(+y);
 
-  // 收集闭合矩形（用于给「总高-N」高度标签自绘引线箭头指向最近矩形）
+  // ---- jsq 风格 defs：CSS 字体类 + 标注箭头 marker（蓝/红 起止 4 个）+ 玻璃渐变 ----
+  const _markerSize = unit / 280;
+  const _defs = '<defs>' +
+    '<style>' +
+      '.t-zh{font-family:"PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;}' +
+      '.t-num{font-family:"Inter","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-feature-settings:"tnum" 1,"ss01" 1;font-variant-numeric:tabular-nums lining-nums;}' +
+      '.t-mix{font-family:"Inter","Segoe UI","PingFang SC","Microsoft YaHei UI",sans-serif;font-feature-settings:"tnum" 1;font-variant-numeric:tabular-nums;}' +
+    '</style>' +
+    '<linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#e0f2fe" stop-opacity="0.55"/>' +
+      '<stop offset="55%" stop-color="#bae6fd" stop-opacity="0.18"/>' +
+      '<stop offset="100%" stop-color="#7dd3fc" stop-opacity="0.10"/>' +
+    '</linearGradient>' +
+    '<linearGradient id="doorGrad" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="#fce7f3" stop-opacity="0.55"/>' +
+      '<stop offset="55%" stop-color="#fbcfe8" stop-opacity="0.20"/>' +
+      '<stop offset="100%" stop-color="#f9a8d4" stop-opacity="0.12"/>' +
+    '</linearGradient>' +
+    '<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">' +
+      '<feDropShadow dx="0" dy="' + (unit / 600) + '" stdDeviation="' + (unit / 500) + '" flood-color="#0f172a" flood-opacity="0.18"/>' +
+    '</filter>' +
+    [['B', '#1d4ed8'], ['R', '#dc2626']].map(([k, c]) =>
+      '<marker id="dimEnd' + k + '" viewBox="0 0 10 10" refX="9" refY="5"' +
+      ' markerWidth="' + _markerSize + '" markerHeight="' + _markerSize + '"' +
+      ' orient="auto" markerUnits="userSpaceOnUse">' +
+        '<path d="M0,0 L10,5 L0,10 z" fill="' + c + '"/>' +
+      '</marker>' +
+      '<marker id="dimStart' + k + '" viewBox="0 0 10 10" refX="1" refY="5"' +
+      ' markerWidth="' + _markerSize + '" markerHeight="' + _markerSize + '"' +
+      ' orient="auto" markerUnits="userSpaceOnUse">' +
+        '<path d="M10,0 L0,5 L10,10 z" fill="' + c + '"/>' +
+      '</marker>'
+    ).join('') +
+  '</defs>';
+
+  // 收集闭合矩形（用于给「总高-N」高度标签自绘引线箭头指向最近矩形 + 区分门玻/固玻填色）
   const heightRects = filtered.filter(e =>
     e.type === 'LWPOLYLINE' && e['70'] === '1' && e._verts && e._verts.length === 4
   ).map(e => {
     const xs = e._verts.map(v => v[0]);
     const ys = e._verts.map(v => v[1]);
     return {
+      ent: e,
       minX: Math.min.apply(null, xs), maxX: Math.max.apply(null, xs),
       minY: Math.min.apply(null, ys), maxY: Math.max.apply(null, ys)
     };
   });
+  // 识别门玻区域：取最大的 open 多边形（带开缺的门玻轮廓）的 bbox
+  // 闭合 4v 矩形（铰链铜片）一律按固玻处理
+  let _doorBBox = null;
+  const _openPolys = filtered.filter(e =>
+    e.type === 'LWPOLYLINE' && e['70'] !== '1' && e._verts && e._verts.length >= 3
+  ).map(e => {
+    const xs = e._verts.map(v => v[0]);
+    const ys = e._verts.map(v => v[1]);
+    return {
+      ent: e,
+      minX: Math.min.apply(null, xs), maxX: Math.max.apply(null, xs),
+      minY: Math.min.apply(null, ys), maxY: Math.max.apply(null, ys)
+    };
+  }).filter(r => (r.maxX - r.minX) > 100 && (r.maxY - r.minY) > 500);
+  if (_openPolys.length) {
+    // 取面积最大的 open polygon
+    let best = _openPolys[0], bestA = 0;
+    _openPolys.forEach(r => {
+      const a = (r.maxX - r.minX) * (r.maxY - r.minY);
+      if (a > bestA) { bestA = a; best = r; }
+    });
+    _doorBBox = best;
+  }
   const _findNearestRect = (tx, ty) => {
     let best = null, bestD = Infinity;
     heightRects.forEach(r => {
@@ -1583,6 +1647,69 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
   const arrowSize = unit / 80;
 
   let body = '';
+  // 先铺门玻红底（在所有线条之下）
+  if (_doorBBox) {
+    const dx = _doorBBox.minX, dw = _doorBBox.maxX - _doorBBox.minX;
+    const dyTop = Y(_doorBBox.maxY), dh = _doorBBox.maxY - _doorBBox.minY;
+    body += '<rect x="' + dx + '" y="' + dyTop + '" width="' + dw + '" height="' + dh +
+            '" rx="' + (stroke*1.2) + '" ry="' + (stroke*1.2) +
+            '" fill="url(#doorGrad)" stroke="none" filter="url(#softShadow)"/>';
+    body += '<line x1="' + (dx + stroke*4) + '" y1="' + (dyTop + stroke*2) +
+            '" x2="' + (dx + dw - stroke*4) + '" y2="' + (dyTop + stroke*2) +
+            '" stroke="#fff" stroke-opacity="0.55" stroke-width="' + (stroke*0.6) + '"/>';
+    // 把合页开缺/拉手孔区域覆盖回 SVG 背景色（#fff），让红底不"涂进"开缺
+    const _notches = filtered.filter(e => {
+      if (e.type !== 'LWPOLYLINE' || e['70'] === '1') return false;
+      if (!e._verts || e._verts.length < 3) return false;
+      const exs = e._verts.map(v => v[0]), eys = e._verts.map(v => v[1]);
+      const eMinX = Math.min.apply(null, exs), eMaxX = Math.max.apply(null, exs);
+      const eMinY = Math.min.apply(null, eys), eMaxY = Math.max.apply(null, eys);
+      if (eMaxX - eMinX > 200) return false;
+      return eMinX >= _doorBBox.minX - 1 && eMaxX <= _doorBBox.maxX + 1
+          && eMinY >= _doorBBox.minY - 1 && eMaxY <= _doorBBox.maxY + 1;
+    });
+    // 闭合开缺多边形：若首末点在 bbox 不同边上，需插入 bbox 对应角点才能正确封闭
+    const _eps = 1.5;
+    const _onEdges = (p) => {
+      const arr = [];
+      if (Math.abs(p[1] - _doorBBox.maxY) < _eps) arr.push('T');
+      if (Math.abs(p[1] - _doorBBox.minY) < _eps) arr.push('B');
+      if (Math.abs(p[0] - _doorBBox.minX) < _eps) arr.push('L');
+      if (Math.abs(p[0] - _doorBBox.maxX) < _eps) arr.push('R');
+      return arr;
+    };
+    const _cornerFor = (a, b) => {
+      const has = (c) => a.includes(c) || b.includes(c);
+      if (has('T') && has('L')) return [_doorBBox.minX, _doorBBox.maxY];
+      if (has('T') && has('R')) return [_doorBBox.maxX, _doorBBox.maxY];
+      if (has('B') && has('L')) return [_doorBBox.minX, _doorBBox.minY];
+      if (has('B') && has('R')) return [_doorBBox.maxX, _doorBBox.minY];
+      return null;
+    };
+    _notches.forEach(e => {
+      const vs = e._verts.slice();
+      const sE = _onEdges(vs[0]);
+      const eE = _onEdges(vs[vs.length - 1]);
+      const common = sE.filter(c => eE.indexOf(c) >= 0);
+      if (!common.length) {
+        const corner = _cornerFor(sE, eE);
+        if (corner) vs.push(corner);
+      }
+      let pd = 'M ' + vs[0][0] + ' ' + Y(vs[0][1]);
+      for (let k = 1; k < vs.length; k++) {
+        pd += ' L ' + vs[k][0] + ' ' + Y(vs[k][1]);
+      }
+      pd += ' Z';
+      body += '<path d="' + pd + '" fill="#ffffff" stroke="none"/>';
+    });
+    filtered.filter(e => e.type === 'CIRCLE').forEach(e => {
+      const cx = +e['10'], cy = +e['20'], r = +e['40'] || 0;
+      if (r <= 0) return;
+      if (cx < _doorBBox.minX || cx > _doorBBox.maxX) return;
+      if (cy < _doorBBox.minY || cy > _doorBBox.maxY) return;
+      body += '<circle cx="' + cx + '" cy="' + Y(cy) + '" r="' + r + '" fill="#ffffff" stroke="none"/>';
+    });
+  }
   filtered.forEach(e => {
     if (e.type === 'LINE') {
       body += '<line x1="' + (+e['10']) + '" y1="' + Y(e['20']) +
@@ -1593,8 +1720,12 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
               '" r="' + (+e['40']) + '" fill="none" stroke="#dc2626" stroke-width="' + stroke + '"/>';
     } else if (e.type === 'MTEXT') {
       const rawCleaned = _cleanMtextString(e['1']);
-      const txt = _replaceHeightFormula(rawCleaned);
+      let txt = _replaceHeightFormula(rawCleaned);
       if (!txt) return;
+      // 把 DXF 模板里的 "左转轴 / 右转轴" 替换为「款式 + 开启方向」
+      if (/^[左右]?转轴$/.test(txt) && _bottomLabel) {
+        txt = _bottomLabel;
+      }
       let fs = +e['40']; if (!isFinite(fs) || fs <= 0) fs = fontSize;
       // 钳位：DXF 中很多数字 MTEXT 的字号被设为 5-20mm，相对整图(1000+ mm)太小看不见
       if (fs < fontSize * 0.6) fs = fontSize * 0.7;
@@ -1624,28 +1755,100 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
           }
         }
       }
-      body += '<text x="' + tx + '" y="' + Y(ty) +
-              '" font-size="' + fs + '" fill="#111827" font-family="Microsoft YaHei UI, sans-serif"' +
+      body += '<text class="t-zh" x="' + tx + '" y="' + Y(ty) +
+              '" font-size="' + fs + '" fill="#0f172a" font-weight="600"' +
               ' text-anchor="start" dominant-baseline="hanging">' + _escSvg(txt) + '</text>';
     } else if (e.type === 'DIMENSION') {
-      // 不画 DXF 原生的虚线/引线，只渲染文字（即孔位/开缺尺寸数值）
+      // DXF DIMENSION 渲染：
+      //   group 70 低 3 bit 决定子类型：0/1=线性/对齐，3=直径，4=半径
+      //   线性：13/14=引线起点，10/20=尺寸线参考点，50=旋转角(deg)，11/21=文字位置
+      //   径向：10/20=圆心(直径)/弧上一点，15/25=圆周上的点，11/21=文字位置
       const x1 = +e['13'], y1 = +e['23'], x2 = +e['14'], y2 = +e['24'];
+      const dimX = +e['10'], dimY = +e['20'];
+      const cx = +e['15'], cy = +e['25'];
       let tx = +e['11'], ty = +e['21'];
+      const dimType = (+e['70'] || 0) & 7;
       if (!isFinite(tx) || !isFinite(ty)) {
-        tx = isFinite(x1) ? (x1 + x2) / 2 : +e['10'];
-        ty = isFinite(y1) ? (y1 + y2) / 2 : +e['20'];
+        tx = isFinite(x1) ? (x1 + x2) / 2 : dimX;
+        ty = isFinite(y1) ? (y1 + y2) / 2 : dimY;
       }
       let label = _replaceHeightFormula(_cleanMtextString(e['1']));
       if (!label || label === '<>') {
         if (isFinite(x1) && isFinite(x2)) label = String(Math.round(Math.hypot(x2-x1, y2-y1)));
       }
+      const isHoleOrRadius = label && /[Φ⌀R]/.test(label);
+      const color = isHoleOrRadius ? '#dc2626' : '#1d4ed8';
+      const colorKey = isHoleOrRadius ? 'R' : 'B';
+      const extStroke = dimStroke * 0.65;
+      const markerEnd = ' marker-end="url(#dimEnd' + colorKey + ')"';
+      const markerBoth = ' marker-start="url(#dimStart' + colorKey + ')"' + markerEnd;
+
+      let textRotDeg = 0; // 屏幕坐标系下文字旋转角度（度）
+
+      if (dimType === 3 || dimType === 4) {
+        // 径向（直径/半径）：从文字 (11,21) 拉引线到圆周点 (15,25)，箭头由 marker 自动指向圆周
+        if (isFinite(cx) && isFinite(cy) && isFinite(tx) && isFinite(ty)) {
+          body += '<line x1="' + tx + '" y1="' + Y(ty) + '" x2="' + cx + '" y2="' + Y(cy) +
+                  '" stroke="' + color + '" stroke-width="' + dimStroke + '" stroke-linecap="round"' + markerEnd + '/>';
+        }
+      } else {
+        // 线性/对齐：用 group 50 旋转角投影到尺寸线
+        const allFinite = isFinite(x1) && isFinite(x2) && isFinite(y1) && isFinite(y2) && isFinite(dimX) && isFinite(dimY);
+        if (allFinite) {
+          let rot = +e['50'];
+          if (!isFinite(rot)) {
+            // 退路：根据 x/y 一致性推断
+            if (Math.abs(x1 - x2) < 1e-3) rot = 90;
+            else if (Math.abs(y1 - y2) < 1e-3) rot = 0;
+            else rot = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+          }
+          const rotR = rot * Math.PI / 180;
+          const cosR = Math.cos(rotR), sinR = Math.sin(rotR);
+          const project = (px, py) => {
+            const t = (px - dimX) * cosR + (py - dimY) * sinR;
+            return [dimX + t * cosR, dimY + t * sinR];
+          };
+          const f1 = project(x1, y1);
+          const f2 = project(x2, y2);
+          // 引线（灰色细线，仅在起点与 foot 不重合时）
+          [[ [x1, y1], f1 ], [ [x2, y2], f2 ]].forEach(seg => {
+            if (Math.hypot(seg[0][0]-seg[1][0], seg[0][1]-seg[1][1]) > 1e-3) {
+              body += '<line x1="' + seg[0][0] + '" y1="' + Y(seg[0][1]) +
+                      '" x2="' + seg[1][0] + '" y2="' + Y(seg[1][1]) +
+                      '" stroke="#94a3b8" stroke-width="' + extStroke + '" stroke-linecap="round"/>';
+            }
+          });
+          // 尺寸线（marker 起止箭头）
+          body += '<line x1="' + f1[0] + '" y1="' + Y(f1[1]) +
+                  '" x2="' + f2[0] + '" y2="' + Y(f2[1]) +
+                  '" stroke="' + color + '" stroke-width="' + dimStroke + '" stroke-linecap="round"' + markerBoth + '/>';
+          // 文字置于尺寸线中点（让白底描边天然"打断"尺寸线）
+          tx = (f1[0] + f2[0]) / 2;
+          ty = (f1[1] + f2[1]) / 2;
+          // 屏幕坐标系下尺寸线方向（注意 Y 翻转）
+          const ddx = f2[0] - f1[0], ddy = f2[1] - f1[1];
+          if (Math.hypot(ddx, ddy) > 1e-3) {
+            const screenAngle = Math.atan2(-(f2[1] - f1[1]), f2[0] - f1[0]) * 180 / Math.PI;
+            // 归一化到 [-90, 90)，让竖直标注的文字始终"从下往上"阅读
+            let na = screenAngle;
+            while (na >= 90) na -= 180;
+            while (na < -90) na += 180;
+            textRotDeg = na;
+          }
+        }
+      }
+      // 文字（白色描边背景，按尺寸线方向旋转，jsq 风格 CSS 字体类）
       if (label && isFinite(tx) && isFinite(ty)) {
-        // Φ/R 标注（孔位直径/圆角半径）用红色，其余尺寸用蓝色
-        const isHoleOrRadius = /[ΦR]/.test(label);
-        const color = isHoleOrRadius ? '#dc2626' : '#1d4ed8';
-        body += '<text x="' + tx + '" y="' + Y(ty) +
+        const tyScreen = Y(ty);
+        const transform = Math.abs(textRotDeg) > 1
+          ? ' transform="rotate(' + textRotDeg.toFixed(2) + ' ' + tx + ' ' + tyScreen + ')"'
+          : '';
+        const cls = isHoleOrRadius ? 't-mix' : 't-num';
+        body += '<text class="' + cls + '" x="' + tx + '" y="' + tyScreen +
                 '" font-size="' + dimFont + '" fill="' + color + '"' +
-                ' text-anchor="middle" dominant-baseline="middle">' + _escSvg(label) + '</text>';
+                ' stroke="#fff" stroke-width="' + (dimFont * 0.2) + '" stroke-linejoin="round" paint-order="stroke fill"' +
+                ' text-anchor="middle" dominant-baseline="middle" font-weight="600"' +
+                transform + '>' + _escSvg(label) + '</text>';
       }
     } else if (e.type === 'LWPOLYLINE') {
       if (!e._verts || e._verts.length < 2) return;
@@ -1670,8 +1873,26 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
         }
         d += ' Z';
       }
-      body += '<path d="' + d + '" fill="none" stroke="#1f2937" stroke-width="' + stroke +
-              '" stroke-linejoin="round" stroke-linecap="round"/>';
+      // 闭合 4 顶点矩形：识别为玻璃面板，按门玻/固玻填渐变色；其它（如开缺）保持无填充黑线
+      const isPanel = closed && verts.length === 4;
+      if (isPanel) {
+        const fillId = 'glassGrad';
+        body += '<path d="' + d + '" fill="url(#' + fillId + ')" stroke="#0f172a" stroke-width="' + stroke +
+                '" stroke-linejoin="round" stroke-linecap="round" filter="url(#softShadow)"/>';
+        // 顶部高光白线（W 风格点缀）
+        const _xs = verts.map(v => v[0]);
+        const _ys = verts.map(v => v[1]);
+        const _minX = Math.min.apply(null, _xs), _maxX = Math.max.apply(null, _xs);
+        const _maxY = Math.max.apply(null, _ys); // DXF 顶部 = 原始 y 最大
+        const _topY = Y(_maxY) + stroke * 2;     // SVG y 翻转后的顶部 + 内移
+        body += '<line x1="' + (_minX + stroke * 4) + '" y1="' + _topY +
+                '" x2="' + (_maxX - stroke * 4) + '" y2="' + _topY +
+                '" stroke="#fff" stroke-opacity="0.55" stroke-width="' + (stroke * 0.6) +
+                '" stroke-linecap="round"/>';
+      } else {
+        body += '<path d="' + d + '" fill="none" stroke="#1f2937" stroke-width="' + stroke +
+                '" stroke-linejoin="round" stroke-linecap="round"/>';
+      }
     }
   });
 
@@ -1679,7 +1900,7 @@ function _buildGlassDxfSvg(ents, axis, panelData) {
          vbX + ' ' + vbY + ' ' + vbW + ' ' + vbH +
          '" preserveAspectRatio="xMidYMid meet"' +
          ' style="width:100%;height:auto;max-height:560px;display:block;background:#fff;border-radius:6px;">' +
-         body + '</svg>';
+         _defs + body + '</svg>';
 }
 
 function renderDxfGlass(wrap, panelData, glassEntry, axis) {
@@ -1710,7 +1931,7 @@ function renderDxfGlass(wrap, panelData, glassEntry, axis) {
 
   const url = new URL('glass/' + glassEntry.dxf, window.location.href).href;
   const renderEnts = (ents) => {
-    const svg = _buildGlassDxfSvg(ents, axis, panelData);
+    const svg = _buildGlassDxfSvg(ents, axis, panelData, { model: (glassEntry && (glassEntry.modelKey || glassEntry.model)) || '' });
     if (svg) holder.innerHTML = svg;
     else {
       // DXF 无可用实体 → 退回语义自绘
